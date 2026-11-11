@@ -1,60 +1,74 @@
-﻿# Sistem Kendali Drone Pengangkut Muatan
+﻿# Adaptive Payload-Aware Control for Quadrotor Logistics
 
-Workspace penelitian tugas akhir tentang kendali quadrotor untuk misi pengambilan dan pelepasan muatan. Fokus penelitian adalah modul firmware PX4 `mc_l1_mo`, yang menggabungkan L1 Adaptive Control, Momentum Observer untuk estimasi massa, dan Event-Triggered Control.
+**Undergraduate thesis project · Engineering Physics, Institut Teknologi Bandung · 2026**  
+**Author:** Nabil Karim Abdurrahman
 
-## Mulai dari sini
+## Project Overview
 
-1. Baca [ringkasan skripsi](docs/RINGKASAN_SKRIPSI.md) untuk memahami tujuan, arsitektur, dan hasil penelitian.
-2. Baca [peta repo dan data](docs/PETA_REPO.md) sebelum mengubah clone atau folder eksperimen.
-3. Buka [firmware PX4 utama](firmware/PX4-main/), yang memuat modul `src/modules/mc_l1_mo/`.
-4. Hasil simulasi berada di [data/sitl_campaigns](data/sitl_campaigns/).
-5. Kode dan hasil MATLAB ada di [program/](program/); skrip optimasi serta status file XY dijelaskan di [program/README.md](program/README.md).
-   Lampiran menyebut file optimizer XY, tetapi salinan lokalnya kosong dan sudah dikeluarkan dari folder aktif.
+This project develops and validates an onboard flight-control system for quadrotors that pick up and release payloads during multi-stop logistics missions. A payload change creates an abrupt shift in vehicle mass and thrust demand. A fixed-gain cascaded PID controller can respond with a large altitude transient and a slow recovery.
 
-## Buka di VS Code
+The proposed PX4 module, `mc_l1_mo`, combines **L1 Adaptive Control**, a **Momentum Observer (MO)** for real-time mass estimation, and **Event-Triggered Control (ETC)**. The design targets the resource-constrained Pixhawk 2.4.8 (FMUv3, STM32F427) and runs onboard without a companion computer in the control loop.
 
-Buka [drone-payload-control.code-workspace](drone-payload-control.code-workspace) untuk melihat komponen penting sebagai satu workspace tanpa menggabungkan riwayat Git masing-masing.
+## Control Design
 
-## Struktur workspace
-
-```text
-.
-├── firmware/
-│   ├── PX4-main/                 # Firmware penelitian mc_l1_mo
-│   └── references/               # Clone PX4 pembanding/versi lain
-├── ros2/
-│   ├── drone_ws/                 # Repo ROS 2 MPC/LESO dengan perubahan lokal
-│   └── ros2_ws/                  # Workspace ROS 2 dan hasil build
-├── middleware/Micro-XRCE-DDS-Agent/
-├── simulation/                   # Model dan simulator Gazebo PX4
-├── experiments/                  # Proyek dan panduan eksperimen MPC/LESO
-├── data/sitl_campaigns/          # Hasil run simulasi
-├── docs/                         # Ringkasan dan dokumentasi workspace
-└── archive/                      # Snapshot lama dan sisa folder yang dipertahankan
+```mermaid
+flowchart LR
+    Mission[ROS 2 mission and trajectory setpoints] --> DDS[uXRCE-DDS bridge]
+    DDS --> SP[PX4 trajectory_setpoint]
+    State[PX4 state estimate] --> MO
+    State --> L1
+    SP --> L1
+    subgraph PX4[PX4 onboard controller: mc_l1_mo]
+        MO[Momentum Observer: mass estimate] --> L1[L1 adaptive predictor and mass-aware feedforward]
+        L1 --> ETC[Event-triggered setpoint updates]
+    end
+    ETC --> Attitude[Attitude and thrust setpoint]
+    Attitude --> Inner[PX4 attitude and rate controllers]
+    Inner --> Vehicle[Quadrotor plant in Gazebo or SIH]
+    Vehicle --> State
+    MO --> Debug[l1_mo_debug telemetry]
+    L1 --> Debug
 ```
 
-## Cara kerja Git
+At each 100 Hz control cycle, the observer uses the vehicle's vertical momentum and thrust model to estimate mass. That estimate feeds the L1 state predictor and thrust feedforward continuously. L1 adaptation compensates for residual model uncertainty and disturbances, while a low-pass filter shapes the adaptive control signal. ETC holds the previous attitude/thrust command while changes remain below configured thresholds and publishes an updated command when the vehicle needs a correction. The controller calculation still runs every cycle; ETC reduces setpoint update traffic rather than control-computation load.
 
-Folder ini adalah repo induk lokal untuk dokumentasi dan kode MATLAB skripsi. `origin` sudah diarahkan ke repo pribadi `karimn14/px4-l1-payload-control`, tetapi GitHub saat ini menjawab Repository not found. Buat repo pribadi kosong dengan nama tersebut atau perbaiki URL sebelum push. Clone kode seperti `firmware/PX4-main/` tetap menjadi repo terpisah dengan remote masing-masing.
+## My Contributions
 
-Jalankan perintah Git dari repo komponennya. Contoh:
+- Built a coupled 6-DOF MATLAB model of the quadrotor, payload-mass transitions, disturbances, and L1+MO+ETC control.
+- Tuned controller parameters using multi-objective optimization and sensitivity studies, balancing tracking, mass-estimation accuracy, and control effort.
+- Implemented `mc_l1_mo` as a native PX4 `ScheduledWorkItem`, using uORB state and trajectory topics and publishing attitude setpoints and debug telemetry.
+- Integrated the controller into ROS 2 and PX4 simulation workflows using uXRCE-DDS and Gazebo.
+- Designed repeatable hover, single-drop, multi-drop, pickup-and-drop, and wind scenarios. Compared the proposed design with the PX4 cascaded PID baseline and ran ablation studies for the mass observer and horizontal integrator.
+- Validated onboard timing and memory use on Pixhawk hardware through PX4 Simulation-in-Hardware (SIH).
 
-```powershell
-git -C firmware/PX4-main status --short --branch
-git -C ros2/drone_ws status --short --branch
-git -C firmware/PX4-main remote -v
-```
+## Validation and Results
 
-Beberapa clone masih menunjuk ke repo upstream. Jangan push dari clone itu bila tidak ingin mempublikasikan perubahan. Jika ingin backup kode di GitHub, gunakan fork pribadi sebagai `origin` dan simpan repo resmi sebagai `upstream`; pastikan URL fork milik Anda sebelum mengganti remote.
+| Measure | Result | Validation context |
+|---|---:|---|
+| Peak altitude error during payload transitions | 38–41% lower than the PID baseline | PX4 Software-in-the-Loop scenarios |
+| Recovery time after a mass transition | 2.2–2.6× faster than the PID baseline | PX4 Software-in-the-Loop scenarios |
+| Payload mass estimation error | Approximately 2–3% | Payload-change scenarios |
+| Controller computation time | 23 μs minimum per cycle | Pixhawk 2.4.8 SIH, controller calculation |
+| Complete module `Run()` time | 45 μs minimum per cycle | Pixhawk 2.4.8 SIH, including uORB I/O |
+| SRAM use | 15.71% | FMUv3 target |
+| Flash use | 97.66% | FMUv3 target |
 
-## Catatan keselamatan workspace
+Validation progressed from MATLAB algorithm studies to PX4 Software-in-the-Loop with ROS 2 and Gazebo Harmonic, then to PX4 SIH on the target flight controller. SIH measured embedded execution on the Pixhawk processor; it does not represent a real outdoor flight test. Real-flight validation is a next step.
 
-`ros2/drone_ws` memiliki banyak perubahan lokal, termasuk perubahan di `build/`, `install/`, dan `log/`. Semua itu dipertahankan. Jangan menjalankan `git clean`, menghapus hasil build, atau mereset repo ini sebelum meninjau `git status` dan memilih perubahan yang ingin disimpan.
+## Tools and Technologies
 
+- **Control and optimization:** MATLAB, Simulink, Global Optimization Toolbox (`gamultiobj` / NSGA-II)
+- **Flight-control firmware:** PX4 v1.17, C++, NuttX, uORB
+- **Robotics and communication:** ROS 2, uXRCE-DDS, Micro XRCE-DDS Agent
+- **Simulation and embedded validation:** Gazebo Harmonic, PX4 SITL, PX4 SIH
+- **Target hardware:** Pixhawk 2.4.8, FMUv3, STM32F427
+- **Data analysis:** MATLAB and Python
 
+## Project Materials
 
+- [MATLAB models, optimization outputs, metrics, and figures](program/)
+- [MATLAB source and artifact notes](program/README.md)
+- [Thesis summary](docs/RINGKASAN_SKRIPSI.md)
 
-
-
-
+The repository snapshot contains selected MATLAB source and research artifacts. The PX4 firmware, ROS 2 workspaces, and full simulation datasets are maintained separately from this portfolio snapshot.
 
