@@ -1,0 +1,2 @@
+gamma_z,kobs_z,lpf_z,mo_ko,kp_z,kd_z,gamma_xy,kobs_xy,lpf_xy,kp_xy,kd_xy,J1_track3D,J2_dm_err,J3_rob
+120,15,12,0.5,3,5,40,15,10,1.5,1,2,0.323864626956392,3.8704415518219

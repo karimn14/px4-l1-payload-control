@@ -1,0 +1,2 @@
+gamma_z,kobs_z,lpf_z,mo_ko,kp_z,kd_z,J1_trans_ise,J2_dm_err_pct,J3_composite,delta_std_pct,sigz_chatter,etc_rate
+120,15,12,0.5,3,5,538411.272468424,1.94685895509704,5.25319867718621,0.275400554525027,0.0332760161465375,0.0346199166320217

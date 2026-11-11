@@ -1,0 +1,16 @@
+﻿# Repo induk ini mengelola dokumentasi dan kode MATLAB proyek.
+# Repo sumber clone, data SITL, build, arsip, dan dokumen skripsi tetap di luar riwayat induk.
+/firmware/
+/ros2/
+/middleware/
+/simulation/
+/experiments/
+/data/
+/archive/
+/docs/reference/2026 TA TF NABIL KARIM ABDURRAHMAN FULL TEXT.docx
+
+# Hasil build/cache MATLAB dan Python
+/program/**/slprj/
+/program/**/__pycache__/
+/program/**/*.asv
+/program/**/*.mex*
