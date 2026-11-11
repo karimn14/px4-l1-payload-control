@@ -9,6 +9,8 @@ This project develops and validates an onboard flight-control system for quadrot
 
 The proposed PX4 module, `mc_l1_mo`, combines **L1 Adaptive Control**, a **Momentum Observer (MO)** for real-time mass estimation, and **Event-Triggered Control (ETC)**. The design targets the resource-constrained Pixhawk 2.4.8 (FMUv3, STM32F427) and runs onboard without a companion computer in the control loop.
 
+MATLAB was used for 6-DOF plant modeling, controller design, sensitivity studies, and parameter tuning. The final performance comparisons and reported campaign data come from PX4 Software-in-the-Loop using ROS 2 and Gazebo Harmonic, followed by onboard timing and memory validation through PX4 Simulation-in-Hardware.
+
 ## Control Design
 
 ```mermaid
@@ -45,30 +47,31 @@ At each 100 Hz control cycle, the observer uses the vehicle's vertical momentum 
 
 | Measure | Result | Validation context |
 |---|---:|---|
-| Peak altitude error during payload transitions | 38–41% lower than the PID baseline | PX4 Software-in-the-Loop scenarios |
-| Recovery time after a mass transition | 2.2–2.6× faster than the PID baseline | PX4 Software-in-the-Loop scenarios |
-| Payload mass estimation error | Approximately 2–3% | Payload-change scenarios |
+| Peak altitude error during payload transitions | 38–41% lower than the PID baseline | ROS 2 and PX4 SITL with Gazebo Harmonic |
+| Recovery time after a mass transition | 2.2–2.6× faster than the PID baseline | ROS 2 and PX4 SITL with Gazebo Harmonic |
+| Payload mass estimation error | Approximately 2–3% | ROS 2/PX4 payload-change scenarios |
 | Controller computation time | 23 μs minimum per cycle | Pixhawk 2.4.8 SIH, controller calculation |
 | Complete module `Run()` time | 45 μs minimum per cycle | Pixhawk 2.4.8 SIH, including uORB I/O |
 | SRAM use | 15.71% | FMUv3 target |
 | Flash use | 97.66% | FMUv3 target |
 
-Validation progressed from MATLAB algorithm studies to PX4 Software-in-the-Loop with ROS 2 and Gazebo Harmonic, then to PX4 SIH on the target flight controller. SIH measured embedded execution on the Pixhawk processor; it does not represent a real outdoor flight test. Real-flight validation is a next step.
+Validation progressed from MATLAB algorithm studies to final Software-in-the-Loop campaigns with ROS 2 and Gazebo Harmonic, then to PX4 SIH on the target flight controller. SIH measured embedded execution on the Pixhawk processor; it does not represent a real outdoor flight test. Real-flight validation is a next step.
 
 ## Tools and Technologies
 
-- **Control and optimization:** MATLAB, Simulink, Global Optimization Toolbox (`gamultiobj` / NSGA-II)
+- **Modeling and control design:** MATLAB, Simulink
+- **Optimization:** Global Optimization Toolbox (`gamultiobj` / NSGA-II), sensitivity analysis
 - **Flight-control firmware:** PX4 v1.17, C++, NuttX, uORB
 - **Robotics and communication:** ROS 2, uXRCE-DDS, Micro XRCE-DDS Agent
-- **Simulation and embedded validation:** Gazebo Harmonic, PX4 SITL, PX4 SIH
+- **Final simulation and embedded validation:** Gazebo Harmonic, PX4 SITL, PX4 SIH
 - **Target hardware:** Pixhawk 2.4.8, FMUv3, STM32F427
-- **Data analysis:** MATLAB and Python
+- **Data analysis:** Python and MATLAB
 
 ## Project Materials
 
-- [MATLAB models, optimization outputs, metrics, and figures](program/)
+- [Final ROS 2/PX4 SITL metrics and selected plots](data/final-sitl/)
+- [MATLAB model, optimization outputs, and supporting figures](program/)
 - [MATLAB source and artifact notes](program/README.md)
 - [Thesis summary](docs/RINGKASAN_SKRIPSI.md)
 
-The repository snapshot contains selected MATLAB source and research artifacts. The PX4 firmware, ROS 2 workspaces, and full simulation datasets are maintained separately from this portfolio snapshot.
-
+The final SITL dataset includes aggregate metrics and selected plots. Full raw time-series data, PX4 firmware, and ROS 2 source workspaces are maintained separately from this portfolio snapshot.

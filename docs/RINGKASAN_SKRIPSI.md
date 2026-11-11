@@ -17,7 +17,7 @@ Loop kendali berjalan sekitar 100 Hz. ETC menekan laju pembaruan setpoint; perhi
 ## Jalur validasi
 
 1. Prototipe algoritma dan penalaan parameter di MATLAB, termasuk model 6-DOF dan optimasi multiobjektif NSGA-II.
-2. Validasi Software-in-the-Loop dengan PX4, ROS 2, dan Gazebo.
+2. Validasi Software-in-the-Loop final melalui PX4, ROS 2, dan Gazebo Harmonic; metrik kampanye terpilih ada di [data/final-sitl](../data/final-sitl/).
 3. Validasi embeddability melalui Simulation-in-Hardware pada Pixhawk target.
 
 ## Hasil yang dilaporkan
@@ -29,3 +29,4 @@ Angka performa tersebut berasal dari kondisi eksperimen yang dijelaskan di skrip
 ## Kode dan hasil MATLAB
 
 Kode MATLAB disimpan di [program/](../program/). Lampiran C skripsi menyebut `l1_mo_pareto_optimization_xy.m` untuk optimasi NSGA-II dan `l1_pid_law_6dof_coupled.m` untuk model 6-DOF. Lihat [catatan MATLAB](../program/README.md) untuk kondisi file optimizer XY yang ada di workspace sekarang.
+

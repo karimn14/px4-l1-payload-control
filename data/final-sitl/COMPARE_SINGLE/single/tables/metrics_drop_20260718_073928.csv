@@ -1,0 +1,4 @@
+label,csv_stem,controller,scenario,true_payload_kg,t_drop_s,pre_rmse3d_mm,pre_rmse_z_mm,pre_mae_z_mm,pre_sse_z_mm2,pre_rmse_xy_mm,pre_roll_std_deg,pre_sigma_z,pre_sigma_z_std,pre_sigma_sat_frac,pre_thrust_norm,peak_alt_err_mm,peak_xy_err_mm,recovery_s,trans_mae_z_mm,trans_ise_z_mm2_s,trans_itae_z_mm_s2,post_rmse_z_mm,post_mae_z_mm,post_sse_z_mm2,post_rmse_xy_mm,post_roll_std_deg,etc_rate,etc_iei_mean,etc_n_trig,detected_delta_kg,delta_err_pct
+mo_off,mo_off,l1,single,1.2,60.238,39.993,34.39,33.794,266099.52,20.422,0.247,0.01,0.008,0.0,0.574,31.2,40.404,0.042,8.173,1293.585,273.394,163.463,69.603,5370719.86,24.066,0.449,0.105,0.182,453,,
+mo_on,mo_on,l1,single,1.2,64.22,17.266,6.882,5.504,10657.56,15.834,0.354,0.0,0.009,0.0,0.573,14.2,34.692,4.14,4.734,330.977,231.897,147.53,59.048,4374765.2,21.703,0.31,0.134,0.143,581,1.175,2.092
+pid,pid,l1_inactive,single,1.2,85.995,20.618,4.92,3.659,5470.06,20.023,0.0,0.0,0.0,0.0,0.0,-498.6,41.283,,,,,,,,,,0.0,,0,,
