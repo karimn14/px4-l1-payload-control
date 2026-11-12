@@ -1,0 +1,9 @@
+﻿# Keep project source visible in GitHub Linguist statistics.
+firmware/px4-overlay/** linguist-detectable=true linguist-generated=false linguist-vendored=false
+ros2/sitl-campaign/** linguist-detectable=true linguist-generated=false linguist-vendored=false
+
+*.cpp linguist-language=C++
+*.hpp linguist-language=C++
+*.py linguist-language=Python
+*.sh linguist-language=Shell
+*.m linguist-language=MATLAB
