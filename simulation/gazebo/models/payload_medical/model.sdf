@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sdf version="1.9">
+  <model name="payload_medical">
+    <link name="payload_link">
+      <inertial>
+        <mass>0.5</mass>
+        <!-- Box 0.12 x 0.10 x 0.08, I = (m/12)(b^2+c^2) -->
+        <inertia>
+          <ixx>0.000683</ixx>   <!-- (0.5/12)(0.10^2+0.08^2) -->
+          <ixy>0</ixy><ixz>0</ixz>
+          <iyy>0.000867</iyy>   <!-- (0.5/12)(0.12^2+0.08^2) -->
+          <iyz>0</iyz>
+          <izz>0.001017</izz>   <!-- (0.5/12)(0.12^2+0.10^2) -->
+        </inertia>
+      </inertial>
+      <collision name="payload_collision">
+        <geometry><box><size>0.12 0.10 0.08</size></box></geometry>
+        <surface>
+          <friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction>
+        </surface>
+      </collision>
+      <visual name="payload_body">
+        <geometry><box><size>0.12 0.10 0.08</size></box></geometry>
+        <material>
+          <ambient>0.85 0.85 0.85 1</ambient>
+          <diffuse>0.90 0.90 0.90 1</diffuse>
+        </material>
+      </visual>
+      <!-- Strip merah (label medis) -->
+      <visual name="medical_stripe">
+        <pose>0 0 0.041 0 0 0</pose>
+        <geometry><box><size>0.122 0.102 0.005</size></box></geometry>
+        <material>
+          <ambient>0.85 0.1 0.1 1</ambient>
+          <diffuse>0.95 0.1 0.1 1</diffuse>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

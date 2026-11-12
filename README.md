@@ -69,9 +69,13 @@ Validation progressed from MATLAB algorithm studies to final Software-in-the-Loo
 
 ## Project Materials
 
+- [PX4 firmware module and integration patch](firmware/)
+- [ROS 2 offboard and SITL campaign scripts](ros2/sitl-campaign/)
+- [Gazebo payload models and worlds](simulation/gazebo/)
+- [uXRCE-DDS middleware dependency](middleware/README.md)
 - [Final ROS 2/PX4 SITL metrics and selected plots](data/final-sitl/)
 - [MATLAB model, optimization outputs, and supporting figures](program/)
-- [MATLAB source and artifact notes](program/README.md)
 - [Thesis summary](docs/RINGKASAN_SKRIPSI.md)
 
-The final SITL dataset includes aggregate metrics and selected plots. Full raw time-series data, PX4 firmware, and ROS 2 source workspaces are maintained separately from this portfolio snapshot.
+This portfolio includes the project-specific PX4 overlay, ROS 2 campaign source, Gazebo payload assets, and curated final analysis. It does not duplicate the full upstream PX4 checkout, middleware source, generated build products, or the complete raw time-series archive.
+

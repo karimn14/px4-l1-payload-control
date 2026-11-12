@@ -1,15 +1,16 @@
 ﻿{
   "folders": [
-    { "path": "docs", "name": "Dokumentasi proyek" },
-    { "path": "program", "name": "MATLAB · optimasi dan model" },
-    { "path": "firmware/PX4-main", "name": "PX4 · mc_l1_mo" },
-    { "path": "ros2/drone_ws", "name": "ROS 2 · MPC/LESO" },
-    { "path": "ros2/ros2_ws/src", "name": "ROS 2 workspace · source" },
-    { "path": "middleware/Micro-XRCE-DDS-Agent", "name": "Micro-XRCE-DDS-Agent" },
-    { "path": "simulation/PX4-gazebo-models", "name": "PX4 Gazebo models" },
-    { "path": "simulation/PX4-SITL_gazebo-classic", "name": "PX4 Gazebo Classic" },
-    { "path": "experiments/px4_mpc_leso_project", "name": "Eksperimen MPC/LESO" },
-    { "path": "data/sitl_campaigns", "name": "Data SITL" }
+    { "path": "docs", "name": "Project documentation" },
+    { "path": "firmware/px4-overlay", "name": "PX4 mc_l1_mo firmware" },
+    { "path": "firmware/patches", "name": "PX4 integration patch" },
+    { "path": "ros2/sitl-campaign", "name": "ROS 2 offboard and SITL campaigns" },
+    { "path": "simulation/gazebo", "name": "Gazebo worlds and payload models" },
+    { "path": "middleware", "name": "uXRCE-DDS dependency notes" },
+    { "path": "experiments", "name": "Experiment overview" },
+    { "path": "data/final-sitl", "name": "Final SITL results" },
+    { "path": "program", "name": "MATLAB model and tuning" },
+    { "path": "firmware/PX4-main", "name": "Local full PX4 checkout" },
+    { "path": "ros2/drone_ws", "name": "Legacy MPC/LESO workspace" }
   ],
   "settings": {
     "files.exclude": {
@@ -26,5 +27,3 @@
     }
   }
 }
-
-

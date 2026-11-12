@@ -1,0 +1,8 @@
+menuconfig MODULES_MC_L1_MO
+    bool "mc_l1_mo"
+    default n
+    select MODULES_MC_RATE_CONTROL
+    select MODULES_MC_ATT_CONTROL
+    help
+        L1 Adaptive Position Controller with Momentum Observer
+        and Event-Triggered Control for multicopter.

@@ -1,0 +1,396 @@
+module_name: mc_l1_mo
+# Place at: ~/PX4-main/src/modules/mc_l1_mo/module.yaml
+#
+# BUILD ERROR FIX: "TypeError: 'NoneType' object is not subscriptable"
+# Root cause: one or more parameters had an empty 'short:' field in description.
+# In YAML, "short:" with no value produces None in Python, which crashes generate_params.py.
+# Example of the bad pattern:
+#   description:
+#     short:          ← empty → None → crash!
+#     long: |
+#       ...
+# All 'short:' fields below have non-empty text. Keep it that way.
+
+parameters:
+  - group: L1MO
+    definitions:
+
+      # ──────────────── L1 Adaptation ────────────────────────────────────────
+
+      L1MO_GAMMA_X:
+        description:
+          short: L1 adaptation rate X axis
+          long: |
+            Adaptation gain Γ for L1 state predictor on the X (North) axis.
+            Higher = faster disturbance estimation but more sensitive to noise.
+        type: float
+        default: 500.0
+        min: 10.0
+        max: 5000.0
+        decimal: 1
+        group: L1MO
+
+      L1MO_GAMMA_Y:
+        description:
+          short: L1 adaptation rate Y axis
+          long: |
+            Adaptation gain Γ for L1 state predictor on the Y (East) axis.
+        type: float
+        default: 500.0
+        min: 10.0
+        max: 5000.0
+        decimal: 1
+        group: L1MO
+
+      L1MO_GAMMA_Z:
+        description:
+          short: L1 adaptation rate Z axis
+          long: |
+            Adaptation gain Γ for L1 state predictor on the Z (Down) axis.
+            Usually slightly higher than XY due to gravity disturbance.
+        type: float
+        default: 800.0
+        min: 10.0
+        max: 5000.0
+        decimal: 1
+        group: L1MO
+
+      L1MO_LPF_XY:
+        description:
+          short: L1 output LPF cutoff XY (rad/s)
+          long: |
+            Low-pass filter cutoff frequency for L1 control output on XY axes.
+            Lower = smoother but slower. Determines L1 bandwidth guarantee.
+        type: float
+        default: 10.0
+        min: 1.0
+        max: 50.0
+        decimal: 1
+        group: L1MO
+
+      L1MO_LPF_Z:
+        description:
+          short: L1 output LPF cutoff Z (rad/s)
+          long: |
+            Low-pass filter cutoff frequency for L1 control output on Z axis.
+        type: float
+        default: 8.0
+        min: 1.0
+        max: 50.0
+        decimal: 1
+        group: L1MO
+
+      L1MO_KOBS_XY:
+        description:
+          short: L1 observer gain XY (1/s)
+          long: |
+            State predictor observer gain for XY axes. Controls predictor feedback.
+        type: float
+        default: 20.0
+        min: 5.0
+        max: 100.0
+        decimal: 1
+        group: L1MO
+
+      L1MO_KOBS_Z:
+        description:
+          short: L1 observer gain Z (1/s)
+          long: |
+            State predictor observer gain for Z axis.
+        type: float
+        default: 20.0
+        min: 5.0
+        max: 100.0
+        decimal: 1
+        group: L1MO
+
+      L1MO_SIG_LIM:
+        description:
+          short: L1 sigma saturation limit (m/s²)
+          long: |
+            Projection-based saturation limit for sigma_hat (disturbance estimate).
+            Prevents unbounded adaptation. Set to expected max disturbance magnitude.
+        type: float
+        default: 5.0
+        min: 1.0
+        max: 30.0
+        decimal: 1
+        group: L1MO
+
+      L1MO_SIG_MOD:
+        description:
+          short: L1 sigma-modification leakage coefficient (robustification)
+          long: |
+            Ioannou & Sun, Robust Adaptive Control.Menambah damping −σ_mod·σ yang menarik sigma ke nol,
+            mencegah drift dan railing. Ini teknik standar & citable untuk paper.
+        type: float
+        default: 0.5
+        min: 0.0
+        max: 5.0
+        decimal: 1
+        group: L1MO
+
+      # ──────────────── Position Controller ──────────────────────────────────
+
+      L1MO_KP_XY:
+        description:
+          short: Position proportional gain XY (1/s²)
+        type: float
+        default: 3.0
+        min: 0.5
+        max: 10.0
+        decimal: 2
+        group: L1MO
+
+      L1MO_KD_XY:
+        description:
+          short: Velocity derivative gain XY (1/s)
+        type: float
+        default: 1.5
+        min: 0.1
+        max: 5.0
+        decimal: 2
+        group: L1MO
+
+      L1MO_KP_Z:
+        description:
+          short: Position proportional gain Z (1/s²)
+        type: float
+        default: 4.0
+        min: 0.5
+        max: 10.0
+        decimal: 2
+        group: L1MO
+
+      L1MO_KD_Z:
+        description:
+          short: Velocity derivative gain Z (1/s)
+        type: float
+        default: 2.0
+        min: 0.1
+        max: 5.0
+        decimal: 2
+        group: L1MO
+
+      L1MO_TILT_MAX:
+        description:
+          short: Maximum tilt angle (degrees)
+          long: |
+            Hard tilt limit for attitude commands. Prevents excessive banking.
+        type: float
+        default: 30.0
+        min: 10.0
+        max: 50.0
+        decimal: 1
+        group: L1MO
+
+      # ──────────────── Mass & Thrust ────────────────────────────────────────
+
+      L1MO_M_NOM:
+        description:
+          short: Nominal drone mass without payload (kg)
+          long: |
+            Nominal drone mass used for thrust-to-acceleration conversion.
+            For Gazebo x500: base_link (2.0 kg) + 4x rotor (4x0.01608 kg) = 2.064 kg.
+            Set this accurately — affects hover thrust and mass estimator initialization.
+        type: float
+        default: 2.064
+        min: 0.5
+        max: 15.0
+        decimal: 3
+        group: L1MO
+
+      L1MO_M_MIN:
+        description:
+          short: Minimum expected total mass (kg)
+          long: |
+            Lower clamp for mass estimator. Set below empty drone mass for safety.
+        type: float
+        default: 1.5
+        min: 0.3
+        max: 10.0
+        decimal: 2
+        group: L1MO
+
+      L1MO_M_MAX:
+        description:
+          short: Maximum expected total mass with payload (kg)
+        type: float
+        default: 5.0
+        min: 1.0
+        max: 20.0
+        decimal: 2
+        group: L1MO
+
+      L1MO_F_MAX:
+        description:
+          short: Maximum total thrust force (N)
+          long: |
+            Maximum thrust all 4 motors combined.
+            For x500 Gazebo: kT=8.54858e-6 N/(rad/s)^2, omega_max=1000 rad/s
+            F_max = 4 * kT * omega_max^2 = 4 * 8.549 = 34.2 N.
+            Set to ~34.2 for SITL, measure empirically for real hardware.
+        type: float
+        default: 34.2
+        min: 10.0
+        max: 200.0
+        decimal: 1
+        group: L1MO
+
+      # ──────────────── Momentum Observer ────────────────────────────────────
+
+      L1MO_MO_EN:
+        description:
+          short: Enable Momentum Observer / Hybrid Mass Estimator
+          long: |
+            1 = enable online mass estimation (MO + Hover Throttle Estimator).
+            0 = use fixed L1MO_M_NOM for all calculations.
+        type: int32
+        default: 1
+        min: 0
+        max: 1
+        group: L1MO
+
+      L1MO_MO_KO:
+        description:
+          short: MO tracking gain (1/s)
+          long: |
+            First-order tracking gain for Momentum Observer.
+            m_est += dt * L1MO_MO_KO * (m_meas - m_est).
+            Higher = faster tracking but noisier. Typical: 0.2-1.0.
+        type: float
+        default: 0.5
+        min: 0.05
+        max: 5.0
+        decimal: 2
+        group: L1MO
+
+      L1MO_MO_DTH:
+        description:
+          short: MO mass delta threshold for transient detection (kg)
+          long: |
+            When |m_MO_current - m_MO_prev| exceeds this threshold, the fusion
+            logic switches from hover estimator to MO (trusts fast response).
+            Use to detect payload pickup/drop events. Typical: 0.05-0.15 kg.
+        type: float
+        default: 0.08
+        min: 0.01
+        max: 1.0
+        decimal: 3
+        group: L1MO
+
+      # ──────────────── Hover Throttle Estimator ─────────────────────────────
+
+      L1MO_HE_TAU:
+        description:
+          short: Hover estimator LPF time constant (s)
+          long: |
+            Time constant of the low-pass filter in the Hover Throttle Estimator.
+            At stable hover, m_hover += (dt/tau) * (T/g - m_hover).
+            Larger tau = smoother but slower convergence. Typical: 3-8 s.
+        type: float
+        default: 5.0
+        min: 1.0
+        max: 30.0
+        decimal: 1
+        group: L1MO
+
+      L1MO_HE_VEL:
+        description:
+          short: Max 3D speed for hover estimation (m/s)
+          long: |
+            Hover estimator only updates when 3D speed < this threshold.
+            Prevents estimator corruption during trajectory tracking.
+            Typical: 0.10-0.20 m/s.
+        type: float
+        default: 0.15
+        min: 0.02
+        max: 0.5
+        decimal: 2
+        group: L1MO
+
+      L1MO_HE_ATT:
+        description:
+          short: Max tilt for hover estimation (degrees)
+          long: |
+            Hover estimator only updates when estimated tilt angle < this threshold.
+            Tilt is approximated from XY acceleration command vs gravity.
+            Typical: 3-8 degrees.
+        type: float
+        default: 5.0
+        min: 1.0
+        max: 20.0
+        decimal: 1
+        group: L1MO
+
+      L1MO_THR_KQ:
+        description:
+          short: Thrust curve quadratic coefficient (N)
+          long: |
+            Koefisien kuadratik kurva thrust: actual_force = KQ·thrust_norm².
+            Dikalibrasi empiris dari hover di beberapa massa berbeda.
+            Untuk x500 Gazebo (F_MAX teoritis 34.2): KQ ≈ 37.0 N.
+            Set 0 untuk menonaktifkan (pakai linear F_MAX lama).
+        type: float
+        default: 37.0
+        min: 0.0
+        max: 100.0
+        decimal: 2
+        group: L1MO
+
+      L1MO_THR_KL:
+        description:
+          short: Thrust curve linear coefficient (N)
+          long: |
+            Koefisien linear opsional: actual_force = KL·tn + KQ·tn².
+            Jika KL=0, model murni kuadratik. Untuk akurasi lebih tinggi
+            pakai KL=12.04, KQ=21.90 (dari fit linear+quad).
+        type: float
+        default: 0.0
+        min: 0.0
+        max: 100.0
+        decimal: 2
+        group: L1MO
+
+      L1MO_HE_SIG:
+        description:
+          short: Max sigma_z for hover estimation (m/s2)
+          long: |
+            Hover estimator hanya update saat |sigma_z| di bawah threshold ini.
+            Memastikan disturbance estimate sudah settle (true equilibrium)
+            sebelum membaca massa dari thrust. Mencegah drift pasca-climb.
+        type: float
+        default: 0.30
+        min: 0.05
+        max: 2.0
+        decimal: 2
+        group: L1MO
+
+      # ──────────────── Event-Triggered Control ──────────────────────────────
+
+      L1MO_ETC_XY:
+        description:
+          short: ETC attitude threshold roll/pitch (degrees)
+          long: |
+            Attitude setpoint is published only when roll or pitch changes by
+            more than this amount. Reduces attitude command update frequency.
+            Typical: 0.2-0.5 degrees.
+        type: float
+        default: 0.3
+        min: 0.05
+        max: 5.0
+        decimal: 2
+        group: L1MO
+
+      L1MO_ETC_Z:
+        description:
+          short: ETC thrust threshold (N)
+          long: |
+            Thrust setpoint is published only when it changes by more than this.
+            Typical: 0.3-1.0 N.
+        type: float
+        default: 0.5
+        min: 0.05
+        max: 5.0
+        decimal: 2
+        group: L1MO

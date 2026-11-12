@@ -1,10 +1,14 @@
-﻿# The umbrella repo tracks project documentation, MATLAB support assets, and curated final SITL results.
-# Full component clones, raw campaign data, build outputs, and local archives remain excluded.
-/firmware/
-/ros2/
-/middleware/
-/simulation/
-/experiments/
+﻿# The umbrella repo tracks curated project source, docs, MATLAB support assets, and final SITL metrics.
+# Full component clones, build outputs, raw campaign data, and local archives stay excluded.
+/firmware/PX4-main/
+/firmware/references/
+/ros2/drone_ws/
+/ros2/ros2_ws/
+/middleware/Micro-XRCE-DDS-Agent/
+/simulation/PX4-gazebo-models/
+/simulation/PX4-SITL_gazebo-classic/
+/experiments/px4_mpc_leso_project/
+/experiments/px4_hil_mpc/
 /data/sitl_campaigns/
 /archive/
 /docs/reference/2026 TA TF NABIL KARIM ABDURRAHMAN FULL TEXT.docx

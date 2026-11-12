@@ -1,0 +1,2137 @@
+diff --git a/ROMFS/px4fmu_common/init.d/airframes/1190_l1mo_sih.hil b/ROMFS/px4fmu_common/init.d/airframes/1190_l1mo_sih.hil
+new file mode 100644
+index 0000000000..be613e81ad
+--- /dev/null
++++ b/ROMFS/px4fmu_common/init.d/airframes/1190_l1mo_sih.hil
+@@ -0,0 +1,45 @@
++#!/bin/sh
++#
++# @name L1MO SIH Quadcopter X
++#
++# @type Simulation
++# @class Copter
++#
++# @maintainer Karim
++#
++# @board px4_fmu-v2 exclude
++#
++
++. ${R}etc/init.d/rc.mc_defaults
++
++param set UAVCAN_ENABLE 0
++
++# SIH on flight controller (start fisika onboard, matikan sensor asli)
++param set SYS_HITL 2
++param set-default CBRK_SUPPLY_CHK 894281
++
++# 0 = Quadcopter
++param set SIH_VEHICLE_TYPE 0
++
++# --- samakan dengan drone asli supaya terbang stabil di SIH ---
++param set-default SIH_MASS  2.064          # massa drone-mu (kg) nama param BENAR
++param set-default SIH_T_MAX 7.0            # ~ L1MO_F_MAX(27.8N)/4 motor. Naikkan kalau hover lemot.
++
++# Square quadrotor X (PX4 numbering)
++param set-default CA_ROTOR_COUNT 4
++param set-default CA_ROTOR0_PX 1
++param set-default CA_ROTOR0_PY 1
++param set-default CA_ROTOR1_PX -1
++param set-default CA_ROTOR1_PY -1
++param set-default CA_ROTOR2_PX 1
++param set-default CA_ROTOR2_PY -1
++param set-default CA_ROTOR2_KM -0.05
++param set-default CA_ROTOR3_PX -1
++param set-default CA_ROTOR3_PY 1
++param set-default CA_ROTOR3_KM -0.05
++
++# Actuator routing SIH-on-FC (BUKAN PWM_MAIN_FUNC biar motor asli tak terdorong)
++param set-default HIL_ACT_FUNC1 101
++param set-default HIL_ACT_FUNC2 102
++param set-default HIL_ACT_FUNC3 103
++param set-default HIL_ACT_FUNC4 104
+diff --git a/ROMFS/px4fmu_common/init.d/airframes/CMakeLists.txt b/ROMFS/px4fmu_common/init.d/airframes/CMakeLists.txt
+index 8f13aa55b1..2d4f5a3577 100644
+--- a/ROMFS/px4fmu_common/init.d/airframes/CMakeLists.txt
++++ b/ROMFS/px4fmu_common/init.d/airframes/CMakeLists.txt
+@@ -46,9 +46,11 @@ if(CONFIG_MODULES_SIMULATION_PWM_OUT_SIM)
+ 		1001_rc_quad_x.hil
+ 		1002_standard_vtol.hil
+ 		1100_rc_quad_x_sih.hil
++		1190_l1mo_sih.hil
+ 		1101_rc_plane_sih.hil
+ 		1102_tailsitter_duo_sih.hil
+ 		1103_standard_vtol_sih.hil
++		1105_rc_hexa_x_sih.hil
+ 	)
+ 	if(CONFIG_MODULES_ROVER_ACKERMANN)
+ 		px4_add_romfs_files(
+diff --git a/ROMFS/px4fmu_common/init.d/rc.mc_apps b/ROMFS/px4fmu_common/init.d/rc.mc_apps
+index adff4e963f..6c3ac49fa4 100644
+--- a/ROMFS/px4fmu_common/init.d/rc.mc_apps
++++ b/ROMFS/px4fmu_common/init.d/rc.mc_apps
+@@ -30,7 +30,9 @@ fi
+ #
+ mc_hover_thrust_estimator start
+ flight_mode_manager start
+-mc_pos_control start
++mc_pos_control stop
++mc_l1_mo start
++
+ 
+ #
+ # Start Multicopter Land Detector.
+@@ -41,3 +43,9 @@ if param compare -s MC_NN_EN 1
+ then
+ 	mc_nn_control start
+ fi
++
++
++if param compare -s MC_RAPTOR_ENABLE 1
++then
++	mc_raptor start
++fi
+diff --git a/boards/px4/fmu-v3/default.px4board b/boards/px4/fmu-v3/default.px4board
+index cb25c33762..cfdd2db17b 100644
+--- a/boards/px4/fmu-v3/default.px4board
++++ b/boards/px4/fmu-v3/default.px4board
+@@ -28,7 +28,6 @@ CONFIG_DRIVERS_IMU_ST_LSM303D=y
+ CONFIG_DRIVERS_IRLOCK=y
+ CONFIG_COMMON_LIGHT=y
+ CONFIG_COMMON_MAGNETOMETER=y
+-CONFIG_COMMON_OPTICAL_FLOW=y
+ CONFIG_DRIVERS_PCA9685_PWM_OUT=y
+ CONFIG_DRIVERS_PWM_INPUT=y
+ CONFIG_DRIVERS_PWM_OUT=y
+@@ -50,8 +49,8 @@ CONFIG_MODULES_EVENTS=y
+ CONFIG_MODULES_FLIGHT_MODE_MANAGER=y
+ CONFIG_MODULES_FW_ATT_CONTROL=y
+ CONFIG_MODULES_FW_AUTOTUNE_ATTITUDE_CONTROL=y
+-CONFIG_MODULES_FW_MODE_MANAGER=y
+ CONFIG_MODULES_FW_LATERAL_LONGITUDINAL_CONTROL=y
++CONFIG_MODULES_FW_MODE_MANAGER=y
+ CONFIG_MODULES_FW_RATE_CONTROL=y
+ CONFIG_MODULES_GIMBAL=y
+ CONFIG_MODULES_GYRO_CALIBRATION=y
+@@ -63,16 +62,15 @@ CONFIG_MODULES_LOGGER=y
+ CONFIG_MODULES_MAG_BIAS_ESTIMATOR=y
+ CONFIG_MODULES_MANUAL_CONTROL=y
+ CONFIG_MODULES_MAVLINK=y
+-CONFIG_MODULES_MC_ATT_CONTROL=y
+ CONFIG_MODULES_MC_AUTOTUNE_ATTITUDE_CONTROL=y
+ CONFIG_MODULES_MC_HOVER_THRUST_ESTIMATOR=y
++CONFIG_MODULES_MC_L1_MO=y
+ CONFIG_MODULES_MC_POS_CONTROL=y
+-CONFIG_MODULES_MC_RATE_CONTROL=y
+ CONFIG_MODULES_NAVIGATOR=y
+ CONFIG_MODULES_RC_UPDATE=y
+ CONFIG_MODULES_SENSORS=y
++CONFIG_MODULES_SIMULATION_SIH=y
+ CONFIG_MODULES_SIMULATION_SIMULATOR_SIH=y
+-CONFIG_MODULES_TEMPERATURE_COMPENSATION=y
+ CONFIG_MODULES_UUV_ATT_CONTROL=y
+ CONFIG_MODULES_UUV_POS_CONTROL=y
+ CONFIG_MODULES_UXRCE_DDS_CLIENT=y
+diff --git a/boards/px4/fmu-v3/init/rc.board_defaults b/boards/px4/fmu-v3/init/rc.board_defaults
+index 5d576dd747..9a109ba9e7 100644
+--- a/boards/px4/fmu-v3/init/rc.board_defaults
++++ b/boards/px4/fmu-v3/init/rc.board_defaults
+@@ -3,5 +3,68 @@
+ # board specific defaults
+ #------------------------------------------------------------------------------
+ 
+-param set-default BAT1_V_DIV 10.177939394
++# === Kalibrasi baterai (board-specific) ===
++param set-default BAT1_V_DIV   10.177939394
+ param set-default BAT1_A_PER_V 15.391030303
++
++# === SIH — boot-critical (set-default krn FRAM mati) ===
++param set-default SYS_HITL 2          # 2 = SIH (BUKAN 1 = classic HITL)
++param set-default SYS_AUTOSTART 1190  # <-- GANTI ke ID custom airframe SIH-mu yg start mc_l1_mo.
++                                      #     1100 = SIH quad STOCK → start mc_pos_control, bukan modulmu.
++
++param set-default MAV_0_CONFIG 0      # matikan MAVLink TELEM1 (sesuaikan kalau if1 dari port lain)
++
++# === uXRCE-DDS di TELEM2 (WAJIB di-bake; QGC tak persist krn FRAM mati) ===
++param set-default MAV_1_CONFIG 0         # bebaskan TELEM2 dari MAVLink
++param set-default UXRCE_DDS_CFG 102      # 102 = TELEM2
++param set-default SER_TEL2_BAUD 921600   # samakan dgn agent -b 921600
++
++# === SIH-on-FC actuator routing ===
++# Idealnya ini ada di airframe script (jalan setelah file ini & menang).
++# Dipertahankan di sini hanya sebagai fallback kalau airframe-mu belum set.
++param set HIL_ACT_FUNC1 101
++param set HIL_ACT_FUNC2 102
++param set HIL_ACT_FUNC3 103
++param set HIL_ACT_FUNC4 104
++
++# === Failsafe / arming untuk offboard tanpa RC ===
++param set COM_RC_IN_MODE 4
++param set NAV_DLL_ACT    0
++param set NAV_RCL_ACT    0
++param set COM_ARM_WO_GPS 1
++param set CBRK_USB_CHK    197848
++param set CBRK_SUPPLY_CHK 894281
++param set CBRK_IO_SAFETY  22027
++param set MAV_TYPE   2
++param set SDLOG_MODE 0
++param set THR_MDL_FAC 0.0
++
++# === mc_l1_mo: POSITION / VELOCITY GAINS ===
++param set L1MO_KP_XY 1.5
++param set L1MO_KD_XY 2.0
++param set L1MO_KP_Z  3.0
++param set L1MO_KD_Z  1.5
++
++# === mc_l1_mo: L1 ADAPTIVE LAW ===
++param set L1MO_GAMMA_X 40.0
++param set L1MO_GAMMA_Y 40.0
++param set L1MO_GAMMA_Z 120.0
++param set L1MO_LPF_XY  10.0
++param set L1MO_LPF_Z   12.0
++param set L1MO_KOBS_XY 15.0
++param set L1MO_KOBS_Z  15.0
++param set L1MO_SIG_LIM 4.0
++
++# === mc_l1_mo: THRUST CALIBRATION ===
++param set L1MO_F_MAX  27.8
++param set L1MO_THR_KQ 31.72
++param set L1MO_THR_KL 17.44
++
++# === mc_l1_mo: MASS ESTIMATOR ===
++param set L1MO_M_NOM 2.064
++param set L1MO_M_MIN 1.5
++param set L1MO_M_MAX 5.0
++param set L1MO_HE_VEL 0.30
++param set L1MO_HE_ATT 5.0
++param set L1MO_HE_TAU 2.0
++param set L1MO_MO_DTH 0.05
+diff --git a/boards/px4/fmu-v3/sih.px4board b/boards/px4/fmu-v3/sih.px4board
+new file mode 100644
+index 0000000000..fa82823bca
+--- /dev/null
++++ b/boards/px4/fmu-v3/sih.px4board
+@@ -0,0 +1,104 @@
++CONFIG_BOARD_TOOLCHAIN="arm-none-eabi"
++CONFIG_BOARD_ARCHITECTURE="cortex-m4"
++CONFIG_BOARD_CONSTRAINED_MEMORY=y
++CONFIG_BOARD_SERIAL_GPS1="/dev/ttyS3"
++CONFIG_BOARD_SERIAL_TEL1="/dev/ttyS1"
++CONFIG_BOARD_SERIAL_TEL2="/dev/ttyS2"
++CONFIG_BOARD_SERIAL_TEL4="/dev/ttyS6"
++CONFIG_DRIVERS_ADC_ADS1115=y
++CONFIG_DRIVERS_ADC_BOARD_ADC=y
++CONFIG_COMMON_BAROMETERS=y
++CONFIG_DRIVERS_BATT_SMBUS=y
++CONFIG_DRIVERS_CAMERA_CAPTURE=y
++CONFIG_DRIVERS_CAMERA_TRIGGER=y
++CONFIG_DRIVERS_CDCACM_AUTOSTART=y
++CONFIG_COMMON_DIFFERENTIAL_PRESSURE=y
++CONFIG_COMMON_DISTANCE_SENSOR=y
++CONFIG_DRIVERS_DSHOT=y
++CONFIG_DRIVERS_GNSS_SEPTENTRIO=y
++CONFIG_DRIVERS_GPS=y
++CONFIG_DRIVERS_HEATER=y
++CONFIG_DRIVERS_IMU_ANALOG_DEVICES_ADIS16448=y
++CONFIG_DRIVERS_IMU_INVENSENSE_ICM20608G=y
++CONFIG_DRIVERS_IMU_INVENSENSE_ICM20948=y
++CONFIG_DRIVERS_IMU_INVENSENSE_MPU6000=y
++CONFIG_DRIVERS_IMU_INVENSENSE_MPU9250=y
++CONFIG_DRIVERS_IMU_ST_L3GD20=y
++CONFIG_DRIVERS_IMU_ST_LSM303D=y
++CONFIG_DRIVERS_IRLOCK=y
++CONFIG_COMMON_LIGHT=y
++CONFIG_COMMON_MAGNETOMETER=y
++CONFIG_DRIVERS_PCA9685_PWM_OUT=y
++CONFIG_DRIVERS_PWM_INPUT=y
++CONFIG_DRIVERS_PWM_OUT=y
++CONFIG_DRIVERS_PX4IO=y
++CONFIG_DRIVERS_SMART_BATTERY_BATMON=y
++CONFIG_COMMON_TELEMETRY=y
++CONFIG_DRIVERS_TONE_ALARM=y
++CONFIG_DRIVERS_UAVCAN=y
++CONFIG_MODULES_AIRSPEED_SELECTOR=y
++CONFIG_MODULES_ATTITUDE_ESTIMATOR_Q=y
++CONFIG_MODULES_BATTERY_STATUS=y
++CONFIG_MODULES_CAMERA_FEEDBACK=y
++CONFIG_MODULES_COMMANDER=y
++CONFIG_MODULES_CONTROL_ALLOCATOR=y
++CONFIG_MODULES_DATAMAN=y
++CONFIG_MODULES_EKF2=y
++CONFIG_MODULES_ESC_BATTERY=y
++CONFIG_MODULES_EVENTS=y
++CONFIG_MODULES_FLIGHT_MODE_MANAGER=y
++CONFIG_MODULES_FW_ATT_CONTROL=y
++CONFIG_MODULES_FW_AUTOTUNE_ATTITUDE_CONTROL=y
++CONFIG_MODULES_FW_MODE_MANAGER=y
++CONFIG_MODULES_FW_LATERAL_LONGITUDINAL_CONTROL=y
++CONFIG_MODULES_FW_RATE_CONTROL=y
++CONFIG_MODULES_GIMBAL=y
++CONFIG_MODULES_GYRO_CALIBRATION=y
++CONFIG_MODULES_LAND_DETECTOR=y
++CONFIG_MODULES_LANDING_TARGET_ESTIMATOR=y
++CONFIG_MODULES_LOAD_MON=y
++CONFIG_MODULES_LOCAL_POSITION_ESTIMATOR=y
++CONFIG_MODULES_LOGGER=y
++CONFIG_MODULES_MAG_BIAS_ESTIMATOR=y
++CONFIG_MODULES_MANUAL_CONTROL=y
++CONFIG_MODULES_MAVLINK=y
++CONFIG_MODULES_MC_ATT_CONTROL=y
++CONFIG_MODULES_MC_AUTOTUNE_ATTITUDE_CONTROL=y
++CONFIG_MODULES_MC_HOVER_THRUST_ESTIMATOR=y
++CONFIG_MODULES_MC_POS_CONTROL=y
++CONFIG_MODULES_MC_RATE_CONTROL=y
++CONFIG_MODULES_NAVIGATOR=y
++CONFIG_MODULES_RC_UPDATE=y
++CONFIG_MODULES_SENSORS=y
++CONFIG_MODULES_SIMULATION_SIMULATOR_SIH=y
++CONFIG_MODULES_UUV_ATT_CONTROL=y
++CONFIG_MODULES_UUV_POS_CONTROL=y
++CONFIG_MODULES_UXRCE_DDS_CLIENT=y
++CONFIG_MODULES_VTOL_ATT_CONTROL=y
++CONFIG_SYSTEMCMDS_ACTUATOR_TEST=y
++CONFIG_SYSTEMCMDS_BL_UPDATE=y
++CONFIG_SYSTEMCMDS_BSONDUMP=y
++CONFIG_SYSTEMCMDS_DUMPFILE=y
++CONFIG_SYSTEMCMDS_GPIO=y
++CONFIG_SYSTEMCMDS_HARDFAULT_LOG=y
++CONFIG_SYSTEMCMDS_I2CDETECT=y
++CONFIG_SYSTEMCMDS_LED_CONTROL=y
++CONFIG_SYSTEMCMDS_MFT=y
++CONFIG_SYSTEMCMDS_MTD=y
++CONFIG_SYSTEMCMDS_NSHTERM=y
++CONFIG_SYSTEMCMDS_PARAM=y
++CONFIG_SYSTEMCMDS_PERF=y
++CONFIG_SYSTEMCMDS_REBOOT=y
++CONFIG_SYSTEMCMDS_REFLECT=y
++CONFIG_SYSTEMCMDS_SD_BENCH=y
++CONFIG_SYSTEMCMDS_SD_STRESS=y
++CONFIG_SYSTEMCMDS_SERIAL_TEST=y
++CONFIG_SYSTEMCMDS_SYSTEM_TIME=y
++CONFIG_SYSTEMCMDS_TOP=y
++CONFIG_SYSTEMCMDS_TOPIC_LISTENER=y
++CONFIG_SYSTEMCMDS_TUNE_CONTROL=y
++CONFIG_SYSTEMCMDS_UORB=y
++CONFIG_SYSTEMCMDS_USB_CONNECTED=y
++CONFIG_SYSTEMCMDS_VER=y
++CONFIG_SYSTEMCMDS_WORK_QUEUE=y
++CONFIG_EXAMPLES_FAKE_GPS=y
+diff --git a/msg/CMakeLists.txt b/msg/CMakeLists.txt
+index 7eda1cc316..e19bc1453e 100644
+--- a/msg/CMakeLists.txt
++++ b/msg/CMakeLists.txt
+@@ -63,11 +63,14 @@ set(msg_files
+ 	DebugKeyValue.msg
+ 	DebugValue.msg
+ 	DebugVect.msg
++	DeviceInformation.msg
+ 	DifferentialPressure.msg
+ 	DistanceSensor.msg
+ 	DistanceSensorModeChangeRequest.msg
+ 	DronecanNodeStatus.msg
+ 	Ekf2Timestamps.msg
++	EscEepromRead.msg
++	EscEepromWrite.msg
+ 	EscReport.msg
+ 	EscStatus.msg
+ 	EstimatorAidSource1d.msg
+@@ -76,6 +79,7 @@ set(msg_files
+ 	EstimatorBias.msg
+ 	EstimatorBias3d.msg
+ 	EstimatorEventFlags.msg
++	EstimatorFusionControl.msg
+ 	EstimatorGpsStatus.msg
+ 	EstimatorInnovations.msg
+ 	EstimatorSelectorStatus.msg
+@@ -98,6 +102,7 @@ set(msg_files
+ 	GeneratorStatus.msg
+ 	GeofenceResult.msg
+ 	GeofenceStatus.msg
++	GainCompression.msg
+ 	GimbalControls.msg
+ 	GimbalDeviceAttitudeStatus.msg
+ 	GimbalDeviceInformation.msg
+@@ -139,6 +144,7 @@ set(msg_files
+ 	Mission.msg
+ 	MissionResult.msg
+ 	MountOrientation.msg
++	MpcDebug.msg
+ 	NavigatorMissionItem.msg
+ 	NavigatorStatus.msg
+ 	NeuralControl.msg
+@@ -173,6 +179,7 @@ set(msg_files
+ 	QshellReq.msg
+ 	QshellRetval.msg
+ 	RadioStatus.msg
++	RangingBeacon.msg
+ 	RateCtrlStatus.msg
+ 	RcChannels.msg
+ 	RcParameterMap.msg
+@@ -207,6 +214,7 @@ set(msg_files
+ 	SensorSelection.msg
+ 	SensorsStatus.msg
+ 	SensorsStatusImu.msg
++	SensorTemp.msg
+ 	SensorUwb.msg
+ 	SensorAirflow.msg
+ 	SystemPower.msg
+@@ -237,6 +245,7 @@ set(msg_files
+ 	VehicleThrustSetpoint.msg
+ 	VehicleTorqueSetpoint.msg
+ 	VelocityLimits.msg
++	Vtx.msg
+ 	WheelEncoders.msg
+ 	YawEstimatorStatus.msg
+ 	versioned/ActuatorMotors.msg
+@@ -244,6 +253,7 @@ set(msg_files
+ 	versioned/AirspeedValidated.msg
+ 	versioned/ArmingCheckReply.msg
+ 	versioned/ArmingCheckRequest.msg
++	versioned/AuxGlobalPosition.msg
+ 	versioned/BatteryStatus.msg
+ 	versioned/ConfigOverrides.msg
+ 	versioned/FixedWingLateralSetpoint.msg
+@@ -254,6 +264,8 @@ set(msg_files
+ 	versioned/LongitudinalControlConfiguration.msg
+ 	versioned/ManualControlSetpoint.msg
+ 	versioned/ModeCompleted.msg
++	versioned/RaptorInput.msg
++	versioned/RaptorStatus.msg
+ 	versioned/RegisterExtComponentReply.msg
+ 	versioned/RegisterExtComponentRequest.msg
+ 	versioned/TrajectorySetpoint.msg
+@@ -267,6 +279,7 @@ set(msg_files
+ 	versioned/VehicleGlobalPosition.msg
+ 	versioned/VehicleLandDetected.msg
+ 	versioned/VehicleLocalPosition.msg
++	L1MoDebug.msg
+ 	versioned/VehicleOdometry.msg
+ 	versioned/VehicleRatesSetpoint.msg
+ 	versioned/VehicleStatus.msg
+@@ -443,7 +456,21 @@ if(CONFIG_LIB_CDRSTREAM)
+ 	file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/idlc)
+ 	execute_process(COMMAND ${CMAKE_COMMAND} ${PX4_SOURCE_DIR}/src/lib/cdrstream/cyclonedds
+ 			-DCMAKE_C_COMPILER=/usr/bin/gcc
++			-DCMAKE_C_COMPILER_LAUNCHER=ccache
++			-DCMAKE_CXX_COMPILER_LAUNCHER=ccache
++			-DCMAKE_C_FLAGS=-Wno-maybe-uninitialized\ -Wno-unused-parameter
+ 			-DBUILD_EXAMPLES=OFF
++			-DENABLE_SSL=OFF
++			-DENABLE_SECURITY=OFF
++			-DBUILD_DDSPERF=OFF
++			-DENABLE_LTO=OFF
++			-DENABLE_LIFESPAN=OFF
++			-DENABLE_DEADLINE_MISSED=OFF
++			-DENABLE_NETWORK_PARTITIONS=oFF
++			-DENABLE_SOURCE_SPECIFIC_MULTICAST=oFF
++			-DENABLE_IPV6=OFF
++			-DENABLE_TYPE_DISCOVERY=OFF
++			-DENABLE_TOPIC_DISCOVERY=oFF
+ 			WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/idlc
+ 			RESULT_VARIABLE CMD_ERROR
+ 			OUTPUT_FILE CMD_OUTPUT )
+diff --git a/msg/L1MoDebug.msg b/msg/L1MoDebug.msg
+new file mode 100644
+index 0000000000..d3d13168e7
+--- /dev/null
++++ b/msg/L1MoDebug.msg
+@@ -0,0 +1,40 @@
++# l1_mo_debug.msg
++# L1 Adaptive Control + Hybrid Mass Estimator debug topic
++# Place at: ~/PX4-main/msg/l1_mo_debug.msg
++# After editing this file: clean rebuild required (rm -rf build/ then make)
++
++uint64 timestamp                # time since system start (microseconds)
++
++# ── L1 Adaptive State (per-axis: 0=X, 1=Y, 2=Z) ──
++float32[3] sigma_hat            # disturbance estimate σ̂ (m/s²)
++float32[3] pos_hat              # predicted position ẑ (m, NED)
++float32[3] vel_hat              # predicted velocity v̂ (m/s, NED)
++float32[3] u_filt               # filtered control output u_filt
++float32[3] pred_err_pos         # predictor position error ẑ-z (m)
++float32[3] pred_err_vel         # predictor velocity error v̂-vz (m/s)
++
++# ── Momentum Observer ──
++float32 mo_m_est                # MO mass estimate (kg)
++float32 mo_vz_filt              # filtered vertical velocity (m/s)
++float32 thrust_norm
++
++# ── Hybrid Mass Estimator (NEW) ──
++float32 hover_m_est             # hover throttle estimator mass (kg)
++float32 fused_m_est             # final fused mass used by controller (kg)
++uint8 hover_est_valid           # 1 = hover estimator converged
++
++# ── Event-Triggered Control (NEW) ──
++uint8 etc_triggered             # 1 = ETC allowed attitude update this cycle
++float32 etc_delta_phi           # |φ_now - φ_last| (degrees, before ETC decision)
++float32 etc_delta_theta         # |θ_now - θ_last| (degrees)
++float32 etc_delta_u1            # |U1_now - U1_last| (N)
++
++# ── Status ──
++uint8 is_airborne               # 1 = drone is in the air
++uint8 mo_enabled                # 1 = MO/hybrid estimator enabled via param
++
++float32 roll_deg
++float32 pitch_deg
++float32 roll_cmd_deg
++float32 pitch_cmd_deg
++float32 yaw_cmd_deg
+diff --git a/src/modules/mc_l1_mo/CMakeLists.txt b/src/modules/mc_l1_mo/CMakeLists.txt
+new file mode 100644
+index 0000000000..551644cfef
+--- /dev/null
++++ b/src/modules/mc_l1_mo/CMakeLists.txt
+@@ -0,0 +1,13 @@
++px4_add_module(
++    MODULE modules__mc_l1_mo
++    MAIN mc_l1_mo
++    COMPILE_FLAGS
++        -Wno-cast-align
++    SRCS
++        mc_l1_mo_main.cpp
++    MODULE_CONFIG
++        module.yaml
++    DEPENDS
++        mathlib
++        px4_work_queue
++)
+diff --git a/src/modules/mc_l1_mo/Kconfig b/src/modules/mc_l1_mo/Kconfig
+new file mode 100644
+index 0000000000..6bc73c2582
+--- /dev/null
++++ b/src/modules/mc_l1_mo/Kconfig
+@@ -0,0 +1,8 @@
++menuconfig MODULES_MC_L1_MO
++    bool "mc_l1_mo"
++    default n
++    select MODULES_MC_RATE_CONTROL
++    select MODULES_MC_ATT_CONTROL
++    help
++        L1 Adaptive Position Controller with Momentum Observer
++        and Event-Triggered Control for multicopter.
+diff --git a/src/modules/mc_l1_mo/L1MoDebug.msg b/src/modules/mc_l1_mo/L1MoDebug.msg
+new file mode 100644
+index 0000000000..e18969f575
+--- /dev/null
++++ b/src/modules/mc_l1_mo/L1MoDebug.msg
+@@ -0,0 +1 @@
++float32 thrust_norm
+diff --git a/src/modules/mc_l1_mo/mc_l1_mo_main.cpp b/src/modules/mc_l1_mo/mc_l1_mo_main.cpp
+new file mode 100644
+index 0000000000..a4b66675b5
+--- /dev/null
++++ b/src/modules/mc_l1_mo/mc_l1_mo_main.cpp
+@@ -0,0 +1,645 @@
++/****************************************************************************
++ *
++ * mc_l1_mo_main.cpp
++ *
++ * L1 Adaptive Control + Momentum Observer + Event-Triggered Control
++ *
++ * ARCHITECTURE:
++ *   Mass estimation: Momentum Observer only (_mo_m_est).
++ *   Hover estimator removed — it required waiting 2+ seconds at quasi-hover,
++ *   introduced a discrete switch between m_nom / hover / MO that caused
++ *   sudden step changes in feedforward thrust, and depended on a valid-flag
++ *   gate that blocked MO from feeding the controller during early flight.
++ *
++ *   MO feeds L1 directly and continuously:
++ *     - _mo_m_est used in state predictor (u_eff) and force conversion (u_raw)
++ *       from the first airborne cycle (no validity delay)
++ *     - Sigma warm-start: when MO detects |Δm| > MO_DTH, sigma_z is adjusted
++ *       by Δσ = −Δm·g/m_new in the same cycle, eliminating multi-second
++ *       adaptation lag after a payload drop
++ *
++ * BUG FIXES (vs original uploaded version):
++ *   BUG 1 (hpp): _mo_m_est init {5.2f} → {2.064f}
++ *   BUG 2 (hpp+cpp): _yaw_target never declared as member; added to hpp
++ *   BUG 3 (cpp): _was_airborne_prev updated before second takeoff check,
++ *                making yaw lock never activate; fixed execution order
++ *   BUG 4 (cpp): parameters_update() reset mass estimates unconditionally;
++ *                guarded with if (!_initialized)
++ *
++ ****************************************************************************/
++
++#include "mc_l1_mo_main.hpp"
++
++ModuleBase::Descriptor McL1MoMain::desc{McL1MoMain::task_spawn, McL1MoMain::custom_command, McL1MoMain::print_usage};
++
++static constexpr float GRAVITY         = 9.81f;
++static constexpr float DT_MAX          = 0.05f;
++static constexpr float DT_MIN          = 0.001f;
++static constexpr float Z_GROUND_THRESH = 0.10f;
++static constexpr float Z_AIR_HI = 0.12f;   // naik > 0.12 m → airborne
++static constexpr float Z_AIR_LO = 0.06f;   // turun < 0.06 m → ground (hysteresis)
++static constexpr float KI_XY      = 0.00f;  // <-- WIRE pakai KI_XY yg sudah kamu pakai
++static constexpr float INT_XY_LIM = 1.50f;  // clamp |integrator| XY  [m/s^2]
++static constexpr float VZ_FREEZE  = 0.30f;  // |vz_sp| > ini => climb/descent => FREEZE [m/s]
++static constexpr float THR_FREEZE = 0.80f;  // collective > ini => dekat saturasi => FREEZE [-]
++static constexpr float THR_CAP    = 0.85f;  // sisakan ~0.15 utk roll/pitch [-]
++
++
++McL1MoMain::McL1MoMain() :
++    ModuleParams(nullptr),
++    ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers),
++    _loop_perf(perf_alloc(PC_ELAPSED, MODULE_NAME": cycle"))
++{
++    parameters_update();
++}
++
++McL1MoMain::~McL1MoMain()
++{
++    perf_free(_loop_perf);
++}
++
++bool McL1MoMain::init()
++{
++    ScheduleOnInterval(10_ms);   // 100 Hz
++    PX4_INFO("mc_l1_mo started at 100Hz");
++    return true;
++}
++
++void McL1MoMain::parameters_update()
++{
++    ModuleParams::updateParams();
++    if (!_initialized) {
++        _mo_m_est  = _param_m_nom.get();
++        _mo_m_prev = _param_m_nom.get();
++    }
++}
++
++void McL1MoMain::Run()
++{
++    if (should_exit()) {
++        ScheduleClear();
++        return;
++    }
++
++    perf_begin(_loop_perf);
++
++    // ── Parameter update check ──
++    if (_parameter_update_sub.updated()) {
++        parameter_update_s pupdate;
++        _parameter_update_sub.copy(&pupdate);
++        parameters_update();
++    }
++
++    // ── Read vehicle local position ──
++    vehicle_local_position_s lpos;
++    if (_local_pos_sub.copy(&lpos)) {
++        if (PX4_ISFINITE(lpos.x) && PX4_ISFINITE(lpos.y) && PX4_ISFINITE(lpos.z)) {
++            _pos[0] = lpos.x; _pos[1] = lpos.y; _pos[2] = lpos.z;
++        }
++        if (PX4_ISFINITE(lpos.vx) && PX4_ISFINITE(lpos.vy) && PX4_ISFINITE(lpos.vz)) {
++            _vel[0] = lpos.vx; _vel[1] = lpos.vy; _vel[2] = lpos.vz;
++        }
++    }
++
++    // ── Read attitude for yaw extraction ──
++    vehicle_attitude_s att_now;
++    if (_attitude_sub.copy(&att_now)) {
++        const float qw = att_now.q[0], qx = att_now.q[1];
++        const float qy = att_now.q[2], qz = att_now.q[3];
++        const float yaw_cand = atan2f(2.0f*(qw*qz + qx*qy),
++                                       1.0f - 2.0f*(qy*qy + qz*qz));
++        if (PX4_ISFINITE(yaw_cand)) _yaw_actual = yaw_cand;
++
++        // roll/pitch — TELEMETRI SAJA (dikirim via l1_mo_debug ke monitor).
++        // vehicle_attitude TIDAK di-bridge keluar oleh uxrce_dds_client di
++        // build ini (sama seperti vehicle_attitude_setpoint), jadi ROS2 gak
++        // pernah dapat data ini langsung. Ini satu-satunya jalan roll_act_deg
++        // / pitch_act_deg di CSV monitor bisa terisi.
++        const float roll_cand  = atan2f(2.0f*(qw*qx + qy*qz),
++                                         1.0f - 2.0f*(qx*qx + qy*qy));
++        const float pitch_cand = asinf(fmaxf(-1.0f, fminf(1.0f,
++                                         2.0f*(qw*qy - qz*qx))));
++        if (PX4_ISFINITE(roll_cand))  _roll_actual  = roll_cand;
++        if (PX4_ISFINITE(pitch_cand)) _pitch_actual = pitch_cand;
++    }
++
++    // ── Check if offboard or position mode active ──
++    vehicle_control_mode_s ctrl_mode;
++    _control_mode_sub.copy(&ctrl_mode);
++    const bool mode_ok = ctrl_mode.flag_control_offboard_enabled
++                      || ctrl_mode.flag_control_position_enabled;
++    if (!mode_ok || !ctrl_mode.flag_armed) {
++        _initialized = false;
++        perf_end(_loop_perf);
++        return;
++    }
++
++    // ── Read trajectory setpoint ──
++    trajectory_setpoint_s traj_sp;
++    if (_traj_sp_sub.copy(&traj_sp)) {
++        for (int i = 0; i < 3; i++) {
++            _sp_pos[i] = PX4_ISFINITE(traj_sp.position[i])     ? traj_sp.position[i]     : _pos[i];
++            _sp_vel[i] = PX4_ISFINITE(traj_sp.velocity[i])     ? traj_sp.velocity[i]     : 0.f;
++            _sp_acc[i] = PX4_ISFINITE(traj_sp.acceleration[i]) ? traj_sp.acceleration[i] : 0.f;
++        }
++    }
++
++    // ── Compute dt ──
++    const hrt_abstime now = hrt_absolute_time();
++    float dt;
++    if (_last_run == 0) {
++        dt = 0.01f;
++    } else {
++        dt = math::constrain((float)(now - _last_run) * 1e-6f, DT_MIN, DT_MAX);
++    }
++    _last_run = now;
++
++    // ── Initialize on first activation ──
++    if (!_initialized) {
++        for (int i = 0; i < 3; i++) {
++            _l1_z_hat[i]  = _pos[i];
++            _l1_vz_hat[i] = _vel[i];
++            _l1_sigma[i]  = 0.f;
++        }
++        const float m_init = _param_m_nom.get();
++        _l1_u_filt[0] = 0.f;
++        _l1_u_filt[1] = 0.f;
++        _l1_u_filt[2] = m_init * GRAVITY;
++        _mo_m_est      = m_init;
++        _mo_m_prev     = m_init;
++        _mo_p_hat      = m_init * _vel[2];   // p_hat = m0*vz → residual mulai dari 0
++        _mo_residual   = 0.f;
++        _sigma_jump_pending = false;
++        _sigma_jump_delta_z = 0.f;
++        _yaw_target    = _yaw_actual;
++        _initialized   = true;
++        _was_airborne_prev = false;
++        _first_takeoff_done = false;   // re-arm reset σ tiap init/arm baru
++        _l1_int_xy[0] = _l1_int_xy[1] = 0.f;
++        PX4_INFO("mc_l1_mo init | m_nom=%.3f kg | yaw=%.1f deg",
++                 (double)m_init, (double)math::degrees(_yaw_actual));
++    }
++
++    // ── Airborne detection (hysteresis: cegah chattering dekat titik ambil) ──
++    //   Tanpa hysteresis, ketinggian berosilasi di sekitar ambang bikin
++    //   is_airborne berkedip → memicu reset σ dan menghapus kompensasi angin.
++    const float h_agl = -_pos[2];                         // altitude (m), positif ke atas
++    const bool is_airborne = _was_airborne_prev
++                           ? (h_agl > Z_AIR_LO)           // sudah airborne → tahan sampai turun < 6 cm
++                           : (h_agl > Z_AIR_HI);          // di tanah      → angkat jika naik > 12 cm
++    _is_airborne = is_airborne;
++
++    // Reset σ HANYA pada takeoff pertama misi — JANGAN saat is_airborne
++    // berkedip dekat tanah (pick-drop); itu menghapus σ_xy penahan angin.
++    if (is_airborne && !_was_airborne_prev && !_first_takeoff_done) {
++        _l1_sigma[0] = _l1_sigma[1] = _l1_sigma[2] = 0.f;
++        _first_takeoff_done = true;
++        _yaw_at_takeoff     = _yaw_actual;
++        _yaw_locked         = true;
++        PX4_INFO("First takeoff | z=%.2f m | sigma init | yaw locked=%.1f deg",
++                 (double)_pos[2], (double)math::degrees(_yaw_at_takeoff));
++    }
++    if (!is_airborne) {
++        _yaw_locked = false;
++    }
++    _was_airborne_prev = is_airborne;
++
++    // ── Determine yaw target ──
++    if (_traj_sp_sub.copy(&traj_sp) && PX4_ISFINITE(traj_sp.yaw)) {
++        _yaw_target       = traj_sp.yaw;
++        _yaw_sp_from_traj = true;
++    } else if (_yaw_locked) {
++        _yaw_target       = _yaw_at_takeoff;
++        _yaw_sp_from_traj = false;
++    } else {
++        _yaw_target       = _yaw_actual;
++        _yaw_sp_from_traj = false;
++    }
++
++    // ── Momentum Observer ──
++    // Runs before L1 so _mo_m_est is fresh when l1_update_axis() reads it.
++    // Ground: skip — acceleration noise on ground corrupts the estimate.
++    if (_param_mo_en.get() && is_airborne) {
++        mo_update(_vel[2], _l1_u_filt[2], dt);
++    }
++
++    // ── L1 update per axis ──
++    // Uses _mo_m_est for state predictor (u_eff) and force conversion (u_raw).
++    for (int axis = 0; axis < 3; axis++) {
++        l1_update_axis(axis, _pos[axis], _vel[axis],
++                       _sp_pos[axis], _sp_vel[axis], _sp_acc[axis], dt);
++    }
++
++    // Periodic mass log (2 s interval)
++    static uint64_t _last_mass_log = 0;
++    if (now - _last_mass_log > 2000000ULL) {
++        PX4_INFO("MASS | mo_est=%.3f kg | sigma_z=%.3f",
++                 (double)_mo_m_est, (double)_l1_sigma[2]);
++        _last_mass_log = now;
++    }
++
++    // ── Compose attitude setpoint ──
++    vehicle_attitude_setpoint_s att_sp{};
++    att_sp.timestamp = now;
++    att_sp.yaw_sp_move_rate = 0.f;
++
++    float U1_force = math::constrain(_l1_u_filt[2], 0.f, _param_f_max.get());
++
++    float acc_cmd[3] = {_l1_u_filt[0], _l1_u_filt[1], _l1_u_filt[2]};
++
++
++    acc_to_attitude_sp(acc_cmd, U1_force, att_sp);
++
++    // ── ETC throttling ──
++    float phi_d_out, theta_d_out;
++    float U1_d_out = U1_force;
++    {
++        const float qw = att_sp.q_d[0], qx = att_sp.q_d[1];
++        const float qy = att_sp.q_d[2], qz = att_sp.q_d[3];
++        phi_d_out = atan2f(2.f*(qw*qx + qy*qz), 1.f - 2.f*(qx*qx + qy*qy));
++        float sp_arg = math::constrain(2.f*(qw*qy - qz*qx), -1.f, 1.f);
++        theta_d_out = asinf(sp_arg);
++    }
++    etc_throttle(phi_d_out, theta_d_out, U1_d_out);
++
++    // Rebuild quaternion from ETC-throttled Euler angles + locked yaw
++    const float cr = cosf(phi_d_out   * 0.5f);
++    const float sr = sinf(phi_d_out   * 0.5f);
++    const float cp = cosf(theta_d_out * 0.5f);
++    const float sp = sinf(theta_d_out * 0.5f);
++    const float cy = cosf(_yaw_target * 0.5f);
++    const float sy = sinf(_yaw_target * 0.5f);
++    att_sp.q_d[0] = cr*cp*cy + sr*sp*sy;
++    att_sp.q_d[1] = sr*cp*cy - cr*sp*sy;
++    att_sp.q_d[2] = cr*sp*cy + sr*cp*sy;
++    att_sp.q_d[3] = cr*cp*sy - sr*sp*cy;
++
++    // ── Thrust curve inversion ──
++    // F = KL·tn + KQ·tn²  →  solve for tn given U1_d_out
++    float thrust_norm;
++    const float KQ = _param_thr_kq.get();
++    const float KL = _param_thr_kl.get();
++    const float U  = math::max(U1_d_out, 0.f);
++
++    if (KQ > 1.0f) {
++        if (KL > 0.01f) {
++            const float disc = KL*KL + 4.0f*KQ*U;
++            thrust_norm = (-KL + sqrtf(math::max(disc, 0.f))) / (2.0f*KQ);
++        } else {
++            thrust_norm = sqrtf(U / KQ);
++        }
++    } else {
++        thrust_norm = U / _param_f_max.get();
++    }
++    thrust_norm = math::constrain(thrust_norm, 0.f, THR_CAP);
++    _thr_norm_prev = thrust_norm;   // dipakai gerbang (B) di cycle berikutnya
++
++    att_sp.thrust_body[0] = 0.f;
++    att_sp.thrust_body[1] = 0.f;
++    att_sp.thrust_body[2] = -thrust_norm;
++
++    _att_sp_pub.publish(att_sp);
++
++    // ── Publish debug topic ──
++    l1_mo_debug_s dbg{};
++    dbg.timestamp = hrt_absolute_time();
++    for (int i = 0; i < 3; i++) {
++        dbg.sigma_hat[i]    = _l1_sigma[i];
++        dbg.pos_hat[i]      = _l1_z_hat[i];
++        dbg.vel_hat[i]      = _l1_vz_hat[i];
++        dbg.u_filt[i]       = _l1_u_filt[i];
++        dbg.pred_err_pos[i] = _l1_z_hat[i]  - _pos[i];
++        dbg.pred_err_vel[i] = _l1_vz_hat[i] - _vel[i];
++    }
++    //dbg.mo_residual_or_vzfilt = _mo_residual;  // r [N] ≈ Δm·g — sinyal inti observer
++    dbg.mo_m_est   = _mo_m_est;
++    dbg.mo_vz_filt = _mo_residual;   // REPURPOSED: residual r [N], bukan lagi vz terfilter
++    // sigma_jump_delta_z is internal — visible via step change in sigma_hat[2]
++    // and mo_m_est in the same cycle. No separate msg field needed.
++    dbg.etc_triggered   = _etc_triggered ? 1u : 0u;
++    dbg.etc_delta_phi   = math::degrees(_etc_delta_phi);
++    dbg.etc_delta_theta = math::degrees(_etc_delta_theta);
++    dbg.etc_delta_u1    = _etc_delta_u1;
++    dbg.thrust_norm     = thrust_norm;
++    dbg.roll_deg        = math::degrees(_roll_actual);   // TELEMETRI SAJA — vehicle_attitude
++    dbg.pitch_deg       = math::degrees(_pitch_actual);  // tidak di-bridge keluar, ini jalannya
++    // roll_cmd/pitch_cmd/yaw_cmd: SAMA PERSIS akar masalahnya (vehicle_attitude_setpoint
++    // gak di-bridge keluar) — phi_d_out/theta_d_out di sini adalah sudut yang
++    // BENERAN dipakai (sudah lewat ETC throttling), lebih akurat drpd baca ulang
++    // dari att_sp.q_d. _yaw_target juga sudah dihitung di atas, tinggal pakai.
++    dbg.roll_cmd_deg    = math::degrees(phi_d_out);
++    dbg.pitch_cmd_deg   = math::degrees(theta_d_out);
++    dbg.yaw_cmd_deg     = math::degrees(_yaw_target);
++    dbg.is_airborne     = is_airborne ? 1u : 0u;
++    dbg.mo_enabled      = (uint8_t)_param_mo_en.get();
++    _l1_debug_pub.publish(dbg);
++
++    perf_end(_loop_perf);
++}
++
++// ─────────────────────────────────────────────────────────────
++//  mo_update: Momentum Observer (De Luca–Mattone, external-force form)
++//
++//  Mengestimasi gaya vertikal eksternal (berat payload) lewat residual
++//  generalized-momentum, lalu memulihkan massa — TANPA mendiferensiasi
++//  kecepatan. Inilah ciri pembeda momentum observer: ia mengintegrasikan
++//  dinamika momentum dan memakai residual feedback, jadi tidak perlu
++//  estimasi akselerasi yang noisy.
++//
++//  Dinamika vertikal (NED, down +), nominal mass m0:
++//      p        = m0 * vz                 (nominal momentum)
++//      tau      = m0*g - U1               (modeled generalized force)
++//      d/dt p   = tau + f_ext             (f_ext = gaya tak-termodel)
++//
++//  Observer:
++//      r           = Ko * (p - p_hat)     (residual)
++//      d/dt p_hat  = tau + r
++//  Dinamika residual: d/dt r = Ko*(f_ext - r)
++//      => r = LPF orde-1 dari f_ext, bandwidth Ko. Tidak ada d/dt(vz).
++//
++//  Pemulihan massa (quasi-static, a_z ≈ 0 saat hover/drop):
++//      f_ext ≈ Δm*g   =>   m_est = m0 + r/g
++//  Saat akselerasi vertikal: f_ext = Δm*(g - a_z); suku a_z adalah error
++//  orde-2 yang hanya dominan di transien cepat. Inilah perilaku
++//  MO-convergence-limited yang sudah Anda dokumentasikan — bukan defect.
++//
++//  Sigma warm-start: pada |Δm| > MO_DTH → koreksi sigma_z seketika:
++//      Δσ_z = −Δm·g / m_new
++// ─────────────────────────────────────────────────────────────
++void McL1MoMain::mo_update(float vz_meas, float U1_vert, float dt)
++{
++    const float m0 = _param_m_nom.get();
++    const float Ko = _param_mo_ko.get();          // observer bandwidth [1/s]
++
++    // ── Momentum residual observer (tanpa pengukuran akselerasi) ──
++    const float p   = m0 * vz_meas;               // nominal momentum
++    const float tau = m0 * GRAVITY - U1_vert;     // modeled generalized force (NED)
++    _mo_residual    = Ko * (p - _mo_p_hat);       // r → LPF(f_ext), bandwidth Ko
++    _mo_p_hat      += dt * (tau + _mo_residual);  // integrasi observer
++
++    if (!PX4_ISFINITE(_mo_p_hat)) {               // guard NaN / windup
++        _mo_p_hat    = m0 * vz_meas;
++        _mo_residual = 0.f;
++    }
++
++    // ── Pemulihan massa dari residual (quasi-static) ──
++    float m_meas = m0 + _mo_residual / GRAVITY;
++    m_meas = math::constrain(m_meas, _param_m_min.get(), _param_m_max.get());
++    _mo_m_est = m_meas;                            // r sudah ter-filter orde-1
++    if (!PX4_ISFINITE(_mo_m_est)) _mo_m_est = m0;
++
++    // ── Sigma warm-start saat transien massa (logika dipertahankan) ──
++    const float mass_jump = _mo_m_est - _mo_m_prev;
++    if (fabsf(mass_jump) > _param_mo_dth.get()) {
++        _sigma_jump_delta_z = -(mass_jump * GRAVITY) / math::max(_mo_m_est, 0.5f);
++        _sigma_jump_pending = true;
++        PX4_INFO("MO transient: Δm=%.3f kg → sigma warm-start Δσ=%.3f m/s²",
++                 (double)mass_jump, (double)_sigma_jump_delta_z);
++    }
++    _mo_m_prev = _mo_m_est;
++}
++
++// ─────────────────────────────────────────────────────────────
++//  l1_update_axis: L1 Adaptive Control per axis
++//
++//  For axis Z, _mo_m_est is used in two places:
++//    1. State predictor u_eff: converts thrust (N) to acceleration (m/s²)
++//       so the predictor runs in the same space as the real plant
++//    2. Force conversion u_raw: converts PD acceleration output back to N
++//       so the LPF output _l1_u_filt[2] is always in Newtons
++//
++//  Sigma warm-start (from mo_update) is applied here on axis Z,
++//  consuming the _sigma_jump_pending flag exactly once per transient.
++// ─────────────────────────────────────────────────────────────
++
++void McL1MoMain::l1_update_axis(int axis,
++                                 float pos, float vel,
++                                 float ref_pos, float ref_vel, float ref_acc,
++                                 float dt)
++{
++    float gamma, lpf, kobs, kp, kd, sigma_lim;
++    if (axis < 2) {
++        gamma = (axis == 0) ? _param_gamma_x.get() : _param_gamma_y.get();
++        lpf   = _param_lpf_xy.get();  kobs = _param_kobs_xy.get();
++        kp    = _param_kp_xy.get();   kd   = _param_kd_xy.get();
++        sigma_lim = _param_sigma_lim.get();
++    } else {
++        gamma = _param_gamma_z.get(); lpf  = _param_lpf_z.get();
++        kobs  = _param_kobs_z.get();  kp   = _param_kp_z.get();
++        kd    = _param_kd_z.get();    sigma_lim = _param_sigma_lim.get();
++    }
++
++    const float e_z  = _l1_z_hat[axis] - pos;
++    const float e_vz = _l1_vz_hat[axis] - vel;
++
++    // ── State predictor ──
++    float u_eff;
++    if (axis < 2) {
++        u_eff = _l1_u_filt[axis];
++    } else {
++        u_eff = GRAVITY - _l1_u_filt[2] / math::max(_mo_m_est, 0.5f);
++    }
++
++    _l1_z_hat[axis]  += dt * (_l1_vz_hat[axis] - kobs * e_z);
++    _l1_vz_hat[axis] += dt * (u_eff + _l1_sigma[axis] - kobs * e_vz);
++    if (!PX4_ISFINITE(_l1_z_hat[axis]))  _l1_z_hat[axis]  = pos;
++    if (!PX4_ISFINITE(_l1_vz_hat[axis])) _l1_vz_hat[axis] = vel;
++
++    // ── [PATCH] Saturation pre-check untuk anti-windup (XY saja) ──
++    // Prediksi apakah output kontrol akan jenuh siklus ini dengan sigma saat ini.
++    const bool is_xy = (axis < 2);
++    float a_max = 0.f;
++    bool  sat_hi = false, sat_lo = false;
++    if (is_xy) {
++        a_max = GRAVITY * tanf(math::radians(_param_tilt_max.get())) * 1.4f;
++        const float u_pre = kp*(ref_pos - pos) + kd*(ref_vel - vel) + ref_acc
++                            + _l1_int_xy[axis] - _l1_sigma[axis];
++        sat_hi = (u_pre >  a_max);
++        sat_lo = (u_pre < -a_max);
++    }
++
++    // ── [PATCH] Adaptasi dengan σ-modification + conditional integration ──
++    if (_is_airborne) {
++        const float sig_mod = _param_sig_mod.get();   // leakage (default 0.5)
++
++        // σ-modification: damping −sig_mod·σ mencegah drift & railing.
++        // Saat e_vz kecil tapi konsisten (penyebab limit cycle), term ini
++        // menahan sigma agar tidak terintegrasi sampai ±SIG_LIM.
++        float dsigma = -gamma * e_vz - gamma * sig_mod * _l1_sigma[axis];
++
++        // Conditional integration: blokir adaptasi yang memperdalam saturasi.
++        // u = PD + ff − sigma  →  menaikkan sigma menurunkan u.
++        // ── [PATCH] Integral error posisi XY: hapus steady-state error angin konstan ──
++        // SESUDAH — patch (B) di-wire ke struktur kodemu:
++        if (is_xy && _is_airborne) {
++            const float e_pos = ref_pos - pos;
++
++            // Phase gate (dari patch B): FREEZE saat climb/descent atau dekat saturasi.
++            // _sp_vel[2] = vz_sp (sudah tersedia sebagai member).
++            const bool in_transient = (fabsf(_sp_vel[2]) > VZ_FREEZE)
++                                || (_thr_norm_prev > THR_FREEZE);
++
++            if (!in_transient) {
++                // Anti-windup berbasis saturasi (tetap dipertahankan, tidak dihapus).
++                const bool block_hi = sat_hi && (e_pos > 0.f);
++                const bool block_lo = sat_lo && (e_pos < 0.f);
++                if (!block_hi && !block_lo) {
++                    _l1_int_xy[axis] += KI_XY * e_pos * dt;
++                    _l1_int_xy[axis]  = math::constrain(_l1_int_xy[axis], -INT_XY_LIM, INT_XY_LIM);
++                }
++            }
++            // Jika in_transient: tidak ada yang dilakukan → _l1_int_xy[axis] FREEZE.
++
++            // Reset hanya sebelum takeoff pertama (latch sudah ada, tidak perlu tambah).
++            // Blok init di Run() sudah handle: _l1_int_xy[0] = _l1_int_xy[1] = 0.f;
++        }
++
++        if (sat_hi && dsigma < 0.f) dsigma = 0.f;  // sigma turun → u makin tinggi
++        if (sat_lo && dsigma > 0.f) dsigma = 0.f;  // sigma naik  → u makin rendah
++
++        _l1_sigma[axis] += dt * dsigma;
++
++        // Sigma warm-start pada transien massa (axis Z) — tidak diubah
++        if (axis == 2 && _sigma_jump_pending) {
++            _l1_sigma[axis] += _sigma_jump_delta_z;
++            _sigma_jump_pending = false;
++            PX4_DEBUG("sigma_z warm-start: sigma_z=%.3f m/s²", (double)_l1_sigma[axis]);
++        }
++
++        _l1_sigma[axis] = math::constrain(_l1_sigma[axis], -sigma_lim, sigma_lim);
++    }
++
++    // ── PD baseline + feedforward − disturbance estimate ──
++    float u_raw = kp * (ref_pos - pos) + kd * (ref_vel - vel) + ref_acc;
++    if (is_xy) u_raw += _l1_int_xy[axis];
++    u_raw -= _l1_sigma[axis];
++
++
++    if (is_xy) {
++        u_raw = math::constrain(u_raw, -a_max, a_max);
++    } else {
++        u_raw = _mo_m_est * (GRAVITY - u_raw);
++        const float f_max_curve = _param_thr_kl.get() + _param_thr_kq.get();
++        const float f_max_eff   = (f_max_curve > 1.0f) ? f_max_curve : _param_f_max.get();
++        u_raw = math::constrain(u_raw, 0.f, f_max_eff);
++    }
++
++    const float alpha = (lpf * dt) / (1.0f + lpf * dt);
++    _l1_u_filt[axis] = (1.0f - alpha) * _l1_u_filt[axis] + alpha * u_raw;
++
++    if (!PX4_ISFINITE(_l1_u_filt[axis])) {
++        _l1_u_filt[axis] = (axis == 2) ? (_mo_m_est * GRAVITY) : 0.f;
++    }
++}
++
++void McL1MoMain::acc_to_attitude_sp(const float acc_cmd[3], float thrust_force,
++                                     vehicle_attitude_setpoint_s &att_sp)
++{
++    const float tilt_max = math::radians(_param_tilt_max.get());
++
++    const float c = cosf(_yaw_target);
++    const float s = sinf(_yaw_target);
++    const float a_fwd =  c * acc_cmd[0] + s * acc_cmd[1];
++    const float a_rgt = -s * acc_cmd[0] + c * acc_cmd[1];
++
++    float theta_d = math::constrain(atan2f(-a_fwd, GRAVITY), -tilt_max, tilt_max);
++    float phi_d   = math::constrain(atan2f( a_rgt, GRAVITY), -tilt_max, tilt_max);
++
++    const float cr = cosf(phi_d   * 0.5f);
++    const float sr = sinf(phi_d   * 0.5f);
++    const float cp = cosf(theta_d * 0.5f);
++    const float sp = sinf(theta_d * 0.5f);
++    const float cy = cosf(_yaw_target * 0.5f);
++    const float sy = sinf(_yaw_target * 0.5f);
++
++    att_sp.q_d[0] = cr*cp*cy + sr*sp*sy;
++    att_sp.q_d[1] = sr*cp*cy - cr*sp*sy;
++    att_sp.q_d[2] = cr*sp*cy + sr*cp*sy;
++    att_sp.q_d[3] = cr*cp*sy - sr*sp*cy;
++
++    for (int i = 0; i < 4; i++) {
++        if (!PX4_ISFINITE(att_sp.q_d[i])) {
++            att_sp.q_d[0] = 1.f; att_sp.q_d[1] = att_sp.q_d[2] = att_sp.q_d[3] = 0.f;
++            break;
++        }
++    }
++    (void)thrust_force;
++}
++
++void McL1MoMain::etc_throttle(float &phi_d, float &theta_d, float &U1_d)
++{
++    const float dxy = math::radians(_param_etc_xy.get());
++    const float dz  = _param_etc_z.get();
++    bool triggered  = false;
++
++    _etc_delta_phi   = fabsf(phi_d   - _etc_phi_last);
++    _etc_delta_theta = fabsf(theta_d - _etc_theta_last);
++    _etc_delta_u1    = fabsf(U1_d    - _etc_U1_last);
++
++    if (_etc_delta_phi >= dxy) {
++        _etc_phi_last = phi_d;
++        triggered = true;
++    } else {
++        phi_d = _etc_phi_last;
++    }
++    if (_etc_delta_theta >= dxy) {
++        _etc_theta_last = theta_d;
++        triggered = true;
++    } else {
++        theta_d = _etc_theta_last;
++    }
++    if (_etc_delta_u1 >= dz) {
++        _etc_U1_last = U1_d;
++        triggered = true;
++    } else {
++        U1_d = _etc_U1_last;
++    }
++
++    _etc_triggered = triggered;
++}
++
++// ─────────────────────────────────────────────────────────────
++//  Module boilerplate
++// ─────────────────────────────────────────────────────────────
++
++int McL1MoMain::task_spawn(int argc, char *argv[])
++{
++    McL1MoMain *instance = new McL1MoMain();
++    if (instance) {
++        desc.object.store(instance);
++        desc.task_id = task_id_is_work_queue;
++        if (instance->init()) return PX4_OK;
++    } else {
++        PX4_ERR("alloc failed");
++    }
++    delete instance;
++    desc.object.store(nullptr);
++    desc.task_id = -1;
++    return PX4_ERROR;
++}
++
++int McL1MoMain::custom_command(int argc, char *argv[])
++{
++    return print_usage("unknown command");
++}
++
++int McL1MoMain::print_usage(const char *reason)
++{
++    if (reason) PX4_WARN("%s\n", reason);
++    PRINT_MODULE_DESCRIPTION(R"DESC_STR(
++### Description
++L1 Adaptive Position Controller with Momentum Observer mass estimation
++and Event-Triggered Control. MO estimate feeds directly into L1 state
++predictor and force conversion. Subscribes to trajectory_setpoint,
++publishes vehicle_attitude_setpoint.
++)DESC_STR");
++    PRINT_MODULE_USAGE_NAME("mc_l1_mo", "controller");
++    PRINT_MODULE_USAGE_COMMAND("start");
++    PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
++    return 0;
++}
++
++extern "C" __EXPORT int mc_l1_mo_main(int argc, char *argv[])
++{
++    return McL1MoMain::main(McL1MoMain::desc, argc, argv);
++}
+diff --git a/src/modules/mc_l1_mo/mc_l1_mo_main.hpp b/src/modules/mc_l1_mo/mc_l1_mo_main.hpp
+new file mode 100644
+index 0000000000..eef9a58b30
+--- /dev/null
++++ b/src/modules/mc_l1_mo/mc_l1_mo_main.hpp
+@@ -0,0 +1,157 @@
++#pragma once
++
++#include <px4_platform_common/module.h>
++#include <px4_platform_common/module_params.h>
++#include <px4_platform_common/px4_work_queue/ScheduledWorkItem.hpp>
++#include <px4_platform_common/defines.h>
++
++#include <drivers/drv_hrt.h>
++#include <lib/perf/perf_counter.h>
++#include <lib/mathlib/mathlib.h>
++
++#include <uORB/Publication.hpp>
++#include <uORB/Subscription.hpp>
++#include <uORB/SubscriptionInterval.hpp>
++
++#include <uORB/topics/parameter_update.h>
++#include <uORB/topics/vehicle_local_position.h>
++#include <uORB/topics/vehicle_attitude.h>
++#include <uORB/topics/trajectory_setpoint.h>
++#include <uORB/topics/vehicle_attitude_setpoint.h>
++#include <uORB/topics/vehicle_control_mode.h>
++#include <uORB/topics/offboard_control_mode.h>
++#include <uORB/topics/l1_mo_debug.h>
++
++using namespace time_literals;
++
++class McL1MoMain : public ModuleBase,
++                   public ModuleParams,
++                   public px4::ScheduledWorkItem
++{
++public:
++    McL1MoMain();
++    ~McL1MoMain() override;
++
++    static int task_spawn(int argc, char *argv[]);
++    static int custom_command(int argc, char *argv[]);
++    static int print_usage(const char *reason = nullptr);
++
++    bool init();
++
++    static Descriptor desc;
++
++private:
++    void Run() override;
++    void parameters_update();
++
++    void l1_update_axis(int axis,
++                        float pos, float vel,
++                        float ref_pos, float ref_vel, float ref_acc,
++                        float dt);
++
++    void mo_update(float vz_meas, float U1_vert, float dt);
++    void acc_to_attitude_sp(const float acc_cmd[3], float thrust_force,
++                            vehicle_attitude_setpoint_s &att_sp);
++    void etc_throttle(float &phi_d, float &theta_d, float &U1_d);
++
++    // ── L1 state per axis [X, Y, Z] ──
++    float _l1_z_hat[3]   {0.f, 0.f, 0.f};
++    float _l1_vz_hat[3]  {0.f, 0.f, 0.f};
++    float _l1_sigma[3]   {0.f, 0.f, 0.f};
++    float _l1_u_filt[3]  {0.f, 0.f, 0.f};
++
++    // ── Momentum Observer state ──
++    float _mo_m_est      {2.064f};   // current MO mass estimate [kg]
++    float _mo_m_prev     {2.064f};   // estimate on previous cycle, for sigma warm-start
++    float _mo_p_hat      {0.f};      // p_hat = m*vz, for residual calculation
++    float _mo_residual   {0.f};      // residual = p_hat - m*vz, for logging and sigma warm-start
++
++    // ── Mass-to-L1 sigma feedback ──
++    // When MO detects a mass jump > MO_DTH, sigma_z is warm-started analytically:
++    //   Δσ_z = −Δm·g / m_new
++    // This collapses multi-second adaptation lag after a payload drop/pickup into
++    // a single-cycle correction.
++    bool  _sigma_jump_pending {false};
++    float _sigma_jump_delta_z {0.f};
++    float _l1_int_xy[2]{0.f, 0.f};   // integrator error posisi XY (anti steady-state wind)
++    float _thr_norm_prev{0.0f};
++
++    // ── ETC last-published values ──
++    float _etc_phi_last   {0.f};
++    float _etc_theta_last {0.f};
++    float _etc_U1_last    {0.f};
++    bool  _etc_triggered   {false};
++    float _etc_delta_phi   {0.f};
++    float _etc_delta_theta {0.f};
++    float _etc_delta_u1    {0.f};
++
++    // ── Vehicle state cache ──
++    float _pos[3]        {0.f, 0.f, 0.f};
++    float _vel[3]        {0.f, 0.f, 0.f};
++    float _yaw_actual    {0.f};
++    float _roll_actual   {0.f};   // rad — TELEMETRI SAJA (l1_mo_debug), gak dipakai kontrol
++    float _pitch_actual  {0.f};   // rad — TELEMETRI SAJA (l1_mo_debug), gak dipakai kontrol
++
++    // ── Yaw control state ──
++    float _yaw_at_takeoff   {0.f};
++    float _yaw_setpoint     {0.f};
++    float _yaw_target        {0.f};
++    bool  _yaw_locked       {false};
++    bool  _yaw_sp_from_traj {false};
++
++    // ── Reference cache ──
++    float _sp_pos[3]     {0.f, 0.f, 0.f};
++    float _sp_vel[3]     {0.f, 0.f, 0.f};
++    float _sp_acc[3]     {0.f, 0.f, 0.f};
++
++    // ── Timing & flags ──
++    hrt_abstime _last_run   {0};
++    bool        _initialized{false};
++    bool        _was_airborne_prev{false};
++    bool        _is_airborne{false};
++    bool _first_takeoff_done{false};   // latch: σ hanya di-reset pada takeoff pertama
++
++    // ── Performance counter ──
++    perf_counter_t _loop_perf;
++
++    // ── Subscriptions ──
++    uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
++    uORB::Subscription _local_pos_sub     {ORB_ID(vehicle_local_position)};
++    uORB::Subscription _attitude_sub      {ORB_ID(vehicle_attitude)};
++    uORB::Subscription _traj_sp_sub       {ORB_ID(trajectory_setpoint)};
++    uORB::Subscription _control_mode_sub  {ORB_ID(vehicle_control_mode)};
++    uORB::Subscription _offboard_mode_sub {ORB_ID(offboard_control_mode)};
++
++    // ── Publications ──
++    uORB::Publication<vehicle_attitude_setpoint_s> _att_sp_pub{ORB_ID(vehicle_attitude_setpoint)};
++    uORB::Publication<l1_mo_debug_s> _l1_debug_pub{ORB_ID(l1_mo_debug)};
++
++    // ── Parameters ──
++    DEFINE_PARAMETERS(
++        (ParamFloat<px4::params::L1MO_GAMMA_X>)  _param_gamma_x,
++        (ParamFloat<px4::params::L1MO_GAMMA_Y>)  _param_gamma_y,
++        (ParamFloat<px4::params::L1MO_GAMMA_Z>)  _param_gamma_z,
++        (ParamFloat<px4::params::L1MO_LPF_XY>)   _param_lpf_xy,
++        (ParamFloat<px4::params::L1MO_LPF_Z>)    _param_lpf_z,
++        (ParamFloat<px4::params::L1MO_KOBS_XY>)  _param_kobs_xy,
++        (ParamFloat<px4::params::L1MO_KOBS_Z>)   _param_kobs_z,
++        (ParamFloat<px4::params::L1MO_KP_XY>)    _param_kp_xy,
++        (ParamFloat<px4::params::L1MO_KP_Z>)     _param_kp_z,
++        (ParamFloat<px4::params::L1MO_KD_XY>)    _param_kd_xy,
++        (ParamFloat<px4::params::L1MO_KD_Z>)     _param_kd_z,
++        (ParamFloat<px4::params::L1MO_SIG_MOD>) _param_sig_mod,
++        (ParamFloat<px4::params::L1MO_SIG_LIM>)  _param_sigma_lim,
++        (ParamFloat<px4::params::L1MO_MO_KO>)    _param_mo_ko,
++        (ParamFloat<px4::params::L1MO_M_NOM>)    _param_m_nom,
++        (ParamFloat<px4::params::L1MO_M_MIN>)    _param_m_min,
++        (ParamFloat<px4::params::L1MO_M_MAX>)    _param_m_max,
++        (ParamFloat<px4::params::L1MO_F_MAX>)    _param_f_max,
++        (ParamFloat<px4::params::L1MO_TILT_MAX>) _param_tilt_max,
++        (ParamFloat<px4::params::L1MO_ETC_XY>)   _param_etc_xy,
++        (ParamFloat<px4::params::L1MO_ETC_Z>)    _param_etc_z,
++        (ParamFloat<px4::params::L1MO_MO_DTH>)   _param_mo_dth,
++        (ParamFloat<px4::params::L1MO_THR_KQ>)   _param_thr_kq,
++        (ParamFloat<px4::params::L1MO_THR_KL>)   _param_thr_kl,
++        (ParamInt<px4::params::L1MO_MO_EN>)       _param_mo_en
++    )
++};
+diff --git a/src/modules/mc_l1_mo/module.yaml b/src/modules/mc_l1_mo/module.yaml
+new file mode 100644
+index 0000000000..363dc32886
+--- /dev/null
++++ b/src/modules/mc_l1_mo/module.yaml
+@@ -0,0 +1,396 @@
++module_name: mc_l1_mo
++# Place at: ~/PX4-main/src/modules/mc_l1_mo/module.yaml
++#
++# BUILD ERROR FIX: "TypeError: 'NoneType' object is not subscriptable"
++# Root cause: one or more parameters had an empty 'short:' field in description.
++# In YAML, "short:" with no value produces None in Python, which crashes generate_params.py.
++# Example of the bad pattern:
++#   description:
++#     short:          ← empty → None → crash!
++#     long: |
++#       ...
++# All 'short:' fields below have non-empty text. Keep it that way.
++
++parameters:
++  - group: L1MO
++    definitions:
++
++      # ──────────────── L1 Adaptation ────────────────────────────────────────
++
++      L1MO_GAMMA_X:
++        description:
++          short: L1 adaptation rate X axis
++          long: |
++            Adaptation gain Γ for L1 state predictor on the X (North) axis.
++            Higher = faster disturbance estimation but more sensitive to noise.
++        type: float
++        default: 500.0
++        min: 10.0
++        max: 5000.0
++        decimal: 1
++        group: L1MO
++
++      L1MO_GAMMA_Y:
++        description:
++          short: L1 adaptation rate Y axis
++          long: |
++            Adaptation gain Γ for L1 state predictor on the Y (East) axis.
++        type: float
++        default: 500.0
++        min: 10.0
++        max: 5000.0
++        decimal: 1
++        group: L1MO
++
++      L1MO_GAMMA_Z:
++        description:
++          short: L1 adaptation rate Z axis
++          long: |
++            Adaptation gain Γ for L1 state predictor on the Z (Down) axis.
++            Usually slightly higher than XY due to gravity disturbance.
++        type: float
++        default: 800.0
++        min: 10.0
++        max: 5000.0
++        decimal: 1
++        group: L1MO
++
++      L1MO_LPF_XY:
++        description:
++          short: L1 output LPF cutoff XY (rad/s)
++          long: |
++            Low-pass filter cutoff frequency for L1 control output on XY axes.
++            Lower = smoother but slower. Determines L1 bandwidth guarantee.
++        type: float
++        default: 10.0
++        min: 1.0
++        max: 50.0
++        decimal: 1
++        group: L1MO
++
++      L1MO_LPF_Z:
++        description:
++          short: L1 output LPF cutoff Z (rad/s)
++          long: |
++            Low-pass filter cutoff frequency for L1 control output on Z axis.
++        type: float
++        default: 8.0
++        min: 1.0
++        max: 50.0
++        decimal: 1
++        group: L1MO
++
++      L1MO_KOBS_XY:
++        description:
++          short: L1 observer gain XY (1/s)
++          long: |
++            State predictor observer gain for XY axes. Controls predictor feedback.
++        type: float
++        default: 20.0
++        min: 5.0
++        max: 100.0
++        decimal: 1
++        group: L1MO
++
++      L1MO_KOBS_Z:
++        description:
++          short: L1 observer gain Z (1/s)
++          long: |
++            State predictor observer gain for Z axis.
++        type: float
++        default: 20.0
++        min: 5.0
++        max: 100.0
++        decimal: 1
++        group: L1MO
++
++      L1MO_SIG_LIM:
++        description:
++          short: L1 sigma saturation limit (m/s²)
++          long: |
++            Projection-based saturation limit for sigma_hat (disturbance estimate).
++            Prevents unbounded adaptation. Set to expected max disturbance magnitude.
++        type: float
++        default: 5.0
++        min: 1.0
++        max: 30.0
++        decimal: 1
++        group: L1MO
++
++      L1MO_SIG_MOD:
++        description:
++          short: L1 sigma-modification leakage coefficient (robustification)
++          long: |
++            Ioannou & Sun, Robust Adaptive Control.Menambah damping −σ_mod·σ yang menarik sigma ke nol,
++            mencegah drift dan railing. Ini teknik standar & citable untuk paper.
++        type: float
++        default: 0.5
++        min: 0.0
++        max: 5.0
++        decimal: 1
++        group: L1MO
++
++      # ──────────────── Position Controller ──────────────────────────────────
++
++      L1MO_KP_XY:
++        description:
++          short: Position proportional gain XY (1/s²)
++        type: float
++        default: 3.0
++        min: 0.5
++        max: 10.0
++        decimal: 2
++        group: L1MO
++
++      L1MO_KD_XY:
++        description:
++          short: Velocity derivative gain XY (1/s)
++        type: float
++        default: 1.5
++        min: 0.1
++        max: 5.0
++        decimal: 2
++        group: L1MO
++
++      L1MO_KP_Z:
++        description:
++          short: Position proportional gain Z (1/s²)
++        type: float
++        default: 4.0
++        min: 0.5
++        max: 10.0
++        decimal: 2
++        group: L1MO
++
++      L1MO_KD_Z:
++        description:
++          short: Velocity derivative gain Z (1/s)
++        type: float
++        default: 2.0
++        min: 0.1
++        max: 5.0
++        decimal: 2
++        group: L1MO
++
++      L1MO_TILT_MAX:
++        description:
++          short: Maximum tilt angle (degrees)
++          long: |
++            Hard tilt limit for attitude commands. Prevents excessive banking.
++        type: float
++        default: 30.0
++        min: 10.0
++        max: 50.0
++        decimal: 1
++        group: L1MO
++
++      # ──────────────── Mass & Thrust ────────────────────────────────────────
++
++      L1MO_M_NOM:
++        description:
++          short: Nominal drone mass without payload (kg)
++          long: |
++            Nominal drone mass used for thrust-to-acceleration conversion.
++            For Gazebo x500: base_link (2.0 kg) + 4x rotor (4x0.01608 kg) = 2.064 kg.
++            Set this accurately — affects hover thrust and mass estimator initialization.
++        type: float
++        default: 2.064
++        min: 0.5
++        max: 15.0
++        decimal: 3
++        group: L1MO
++
++      L1MO_M_MIN:
++        description:
++          short: Minimum expected total mass (kg)
++          long: |
++            Lower clamp for mass estimator. Set below empty drone mass for safety.
++        type: float
++        default: 1.5
++        min: 0.3
++        max: 10.0
++        decimal: 2
++        group: L1MO
++
++      L1MO_M_MAX:
++        description:
++          short: Maximum expected total mass with payload (kg)
++        type: float
++        default: 5.0
++        min: 1.0
++        max: 20.0
++        decimal: 2
++        group: L1MO
++
++      L1MO_F_MAX:
++        description:
++          short: Maximum total thrust force (N)
++          long: |
++            Maximum thrust all 4 motors combined.
++            For x500 Gazebo: kT=8.54858e-6 N/(rad/s)^2, omega_max=1000 rad/s
++            F_max = 4 * kT * omega_max^2 = 4 * 8.549 = 34.2 N.
++            Set to ~34.2 for SITL, measure empirically for real hardware.
++        type: float
++        default: 34.2
++        min: 10.0
++        max: 200.0
++        decimal: 1
++        group: L1MO
++
++      # ──────────────── Momentum Observer ────────────────────────────────────
++
++      L1MO_MO_EN:
++        description:
++          short: Enable Momentum Observer / Hybrid Mass Estimator
++          long: |
++            1 = enable online mass estimation (MO + Hover Throttle Estimator).
++            0 = use fixed L1MO_M_NOM for all calculations.
++        type: int32
++        default: 1
++        min: 0
++        max: 1
++        group: L1MO
++
++      L1MO_MO_KO:
++        description:
++          short: MO tracking gain (1/s)
++          long: |
++            First-order tracking gain for Momentum Observer.
++            m_est += dt * L1MO_MO_KO * (m_meas - m_est).
++            Higher = faster tracking but noisier. Typical: 0.2-1.0.
++        type: float
++        default: 0.5
++        min: 0.05
++        max: 5.0
++        decimal: 2
++        group: L1MO
++
++      L1MO_MO_DTH:
++        description:
++          short: MO mass delta threshold for transient detection (kg)
++          long: |
++            When |m_MO_current - m_MO_prev| exceeds this threshold, the fusion
++            logic switches from hover estimator to MO (trusts fast response).
++            Use to detect payload pickup/drop events. Typical: 0.05-0.15 kg.
++        type: float
++        default: 0.08
++        min: 0.01
++        max: 1.0
++        decimal: 3
++        group: L1MO
++
++      # ──────────────── Hover Throttle Estimator ─────────────────────────────
++
++      L1MO_HE_TAU:
++        description:
++          short: Hover estimator LPF time constant (s)
++          long: |
++            Time constant of the low-pass filter in the Hover Throttle Estimator.
++            At stable hover, m_hover += (dt/tau) * (T/g - m_hover).
++            Larger tau = smoother but slower convergence. Typical: 3-8 s.
++        type: float
++        default: 5.0
++        min: 1.0
++        max: 30.0
++        decimal: 1
++        group: L1MO
++
++      L1MO_HE_VEL:
++        description:
++          short: Max 3D speed for hover estimation (m/s)
++          long: |
++            Hover estimator only updates when 3D speed < this threshold.
++            Prevents estimator corruption during trajectory tracking.
++            Typical: 0.10-0.20 m/s.
++        type: float
++        default: 0.15
++        min: 0.02
++        max: 0.5
++        decimal: 2
++        group: L1MO
++
++      L1MO_HE_ATT:
++        description:
++          short: Max tilt for hover estimation (degrees)
++          long: |
++            Hover estimator only updates when estimated tilt angle < this threshold.
++            Tilt is approximated from XY acceleration command vs gravity.
++            Typical: 3-8 degrees.
++        type: float
++        default: 5.0
++        min: 1.0
++        max: 20.0
++        decimal: 1
++        group: L1MO
++
++      L1MO_THR_KQ:
++        description:
++          short: Thrust curve quadratic coefficient (N)
++          long: |
++            Koefisien kuadratik kurva thrust: actual_force = KQ·thrust_norm².
++            Dikalibrasi empiris dari hover di beberapa massa berbeda.
++            Untuk x500 Gazebo (F_MAX teoritis 34.2): KQ ≈ 37.0 N.
++            Set 0 untuk menonaktifkan (pakai linear F_MAX lama).
++        type: float
++        default: 37.0
++        min: 0.0
++        max: 100.0
++        decimal: 2
++        group: L1MO
++
++      L1MO_THR_KL:
++        description:
++          short: Thrust curve linear coefficient (N)
++          long: |
++            Koefisien linear opsional: actual_force = KL·tn + KQ·tn².
++            Jika KL=0, model murni kuadratik. Untuk akurasi lebih tinggi
++            pakai KL=12.04, KQ=21.90 (dari fit linear+quad).
++        type: float
++        default: 0.0
++        min: 0.0
++        max: 100.0
++        decimal: 2
++        group: L1MO
++
++      L1MO_HE_SIG:
++        description:
++          short: Max sigma_z for hover estimation (m/s2)
++          long: |
++            Hover estimator hanya update saat |sigma_z| di bawah threshold ini.
++            Memastikan disturbance estimate sudah settle (true equilibrium)
++            sebelum membaca massa dari thrust. Mencegah drift pasca-climb.
++        type: float
++        default: 0.30
++        min: 0.05
++        max: 2.0
++        decimal: 2
++        group: L1MO
++
++      # ──────────────── Event-Triggered Control ──────────────────────────────
++
++      L1MO_ETC_XY:
++        description:
++          short: ETC attitude threshold roll/pitch (degrees)
++          long: |
++            Attitude setpoint is published only when roll or pitch changes by
++            more than this amount. Reduces attitude command update frequency.
++            Typical: 0.2-0.5 degrees.
++        type: float
++        default: 0.3
++        min: 0.05
++        max: 5.0
++        decimal: 2
++        group: L1MO
++
++      L1MO_ETC_Z:
++        description:
++          short: ETC thrust threshold (N)
++          long: |
++            Thrust setpoint is published only when it changes by more than this.
++            Typical: 0.3-1.0 N.
++        type: float
++        default: 0.5
++        min: 0.05
++        max: 5.0
++        decimal: 2
++        group: L1MO
+diff --git a/src/modules/uxrce_dds_client/dds_topics.yaml b/src/modules/uxrce_dds_client/dds_topics.yaml
+index 7cc39d199c..4601d6d332 100644
+--- a/src/modules/uxrce_dds_client/dds_topics.yaml
++++ b/src/modules/uxrce_dds_client/dds_topics.yaml
+@@ -1,228 +1,194 @@
+-#####
+ #
+-# This file maps all the topics that are to be used on the uXRCE-DDS client.
++# uXRCE-DDS topics - TRIMMED untuk offboard pick_drop (classic OffboardControlMode + TrajectorySetpoint).
++# Tujuan: turunkan RAM/CPU di FMUv3. Topik ter-comment AMAN dimatikan utk use-case ini.
++# Kalau pick_drop.py pakai library px4_ros2 (mode registration), buka lagi blok "px4_ros2 mode API".
+ #
+ #####
+ publications:
+ 
+-  - topic: /fmu/out/register_ext_component_reply
+-    type: px4_msgs::msg::RegisterExtComponentReply
+-
+-  - topic: /fmu/out/arming_check_request
+-    type: px4_msgs::msg::ArmingCheckRequest
+-    rate_limit: 5.
+-
+-  - topic: /fmu/out/mode_completed
+-    type: px4_msgs::msg::ModeCompleted
+-    rate_limit: 50.
+-
+-  - topic: /fmu/out/battery_status
+-    type: px4_msgs::msg::BatteryStatus
+-    rate_limit: 1.
+-
+-  - topic: /fmu/out/collision_constraints
+-    type: px4_msgs::msg::CollisionConstraints
++  # --- KEEP: feedback yang dibaca pick_drop.py ---
++  - topic: /fmu/out/vehicle_local_position      # KEEP: posisi drone
++    type: px4_msgs::msg::VehicleLocalPosition
+     rate_limit: 50.
+ 
+-  - topic: /fmu/out/estimator_status_flags
+-    type: px4_msgs::msg::EstimatorStatusFlags
+-    rate_limit: 5.
+-
+-  - topic: /fmu/out/failsafe_flags
+-    type: px4_msgs::msg::FailsafeFlags
+-    rate_limit: 5.
+-
+-  - topic: /fmu/out/manual_control_setpoint
+-    type: px4_msgs::msg::ManualControlSetpoint
+-    rate_limit: 25.
+-
+-  - topic: /fmu/out/message_format_response
+-    type: px4_msgs::msg::MessageFormatResponse
+-
+-  - topic: /fmu/out/position_setpoint_triplet
+-    type: px4_msgs::msg::PositionSetpointTriplet
++  - topic: /fmu/out/vehicle_status              # KEEP: arming/nav state
++    type: px4_msgs::msg::VehicleStatus
+     rate_limit: 5.
+ 
+-  - topic: /fmu/out/sensor_combined
+-    type: px4_msgs::msg::SensorCombined
+-
+-  - topic: /fmu/out/timesync_status
++  - topic: /fmu/out/timesync_status             # KEEP: sinkronisasi waktu DDS
+     type: px4_msgs::msg::TimesyncStatus
+     rate_limit: 10.
+ 
+-  - topic: /fmu/out/transponder_report
+-    type: px4_msgs::msg::TransponderReport
+- 
+-  # - topic: /fmu/out/vehicle_angular_velocity
+-  #   type: px4_msgs::msg::VehicleAngularVelocity
+-
+-  - topic: /fmu/out/vehicle_land_detected
+-    type: px4_msgs::msg::VehicleLandDetected
+-    rate_limit: 5.
+-
+-  - topic: /fmu/out/vehicle_attitude
+-    type: px4_msgs::msg::VehicleAttitude
+-
+-  - topic: /fmu/out/vehicle_control_mode
+-    type: px4_msgs::msg::VehicleControlMode
+-    rate_limit: 50.
+-
+-  - topic: /fmu/out/vehicle_command_ack
++  - topic: /fmu/out/vehicle_command_ack         # KEEP (kecil): konfirmasi arm/mode
+     type: px4_msgs::msg::VehicleCommandAck
+ 
+-  - topic: /fmu/out/vehicle_global_position
+-    type: px4_msgs::msg::VehicleGlobalPosition
+-    rate_limit: 50.
+-
+-  - topic: /fmu/out/vehicle_gps_position
+-    type: px4_msgs::msg::SensorGps
+-    rate_limit: 50.
+-
+-  - topic: /fmu/out/vehicle_local_position
+-    type: px4_msgs::msg::VehicleLocalPosition
+-    rate_limit: 50.
+-
+-  - topic: /fmu/out/vehicle_odometry
+-    type: px4_msgs::msg::VehicleOdometry
+-
+-  - topic: /fmu/out/vehicle_status
+-    type: px4_msgs::msg::VehicleStatus
+-    rate_limit: 5.
+-
+-  - topic: /fmu/out/airspeed_validated
+-    type: px4_msgs::msg::AirspeedValidated
+-    rate_limit: 50.
+-
+-  - topic: /fmu/out/vtol_vehicle_status
+-    type: px4_msgs::msg::VtolVehicleStatus
+-
+-  - topic: /fmu/out/home_position
+-    type: px4_msgs::msg::HomePosition
+-    rate_limit: 5.
+-
+-  - topic: /fmu/out/wind
+-    type: px4_msgs::msg::Wind
+-    rate_limit: 1.
+-
+-  - topic: /fmu/out/gimbal_device_attitude_status
+-    type: px4_msgs::msg::GimbalDeviceAttitudeStatus
+-    rate_limit: 20.
++  - topic: /fmu/out/l1_mo_debug                 # KEEP kalau kamu rekam internal L1+MO saat run
++    type: px4_msgs::msg::L1MoDebug
++
++  # --- Opsional: buka kalau perlu ---
++  # - topic: /fmu/out/vehicle_control_mode      # konfirmasi offboard aktif
++  #   type: px4_msgs::msg::VehicleControlMode
++  #   rate_limit: 50.
++  # - topic: /fmu/out/vehicle_attitude          # buka kalau script butuh orientasi
++  #   type: px4_msgs::msg::VehicleAttitude
++  #   rate_limit: 50.
++  # - topic: /fmu/out/vehicle_land_detected     # buka kalau script cek landing
++  #   type: px4_msgs::msg::VehicleLandDetected
++  #   rate_limit: 5.
++  # - topic: /fmu/out/failsafe_flags            # buka kalau mau debug arming-denied tanpa QGC
++  #   type: px4_msgs::msg::FailsafeFlags
++  #   rate_limit: 5.
++
++  # === px4_ros2 mode API (TIDAK perlu utk classic offboard) ===
++  # - topic: /fmu/out/register_ext_component_reply
++  #   type: px4_msgs::msg::RegisterExtComponentReply
++  # - topic: /fmu/out/arming_check_request
++  #   type: px4_msgs::msg::ArmingCheckRequest
++  #   rate_limit: 5.
++  # - topic: /fmu/out/mode_completed
++  #   type: px4_msgs::msg::ModeCompleted
++  #   rate_limit: 50.
++  # - topic: /fmu/out/message_format_response
++  #   type: px4_msgs::msg::MessageFormatResponse
++
++  # === Tidak dipakai (hemat RAM) ===
++  # - topic: /fmu/out/mpc_debug                 # debug lama; buka kalau masih dipakai
++  #   type: px4_msgs::msg::MpcDebug
++  # - topic: /fmu/out/actuator_outputs
++  #   type: px4_msgs::msg::ActuatorOutputs
++  # - topic: /fmu/out/vehicle_angular_velocity
++  #   type: px4_msgs::msg::VehicleAngularVelocity
++  # - topic: /fmu/out/vehicle_attitude_setpoint
++  #   type: px4_msgs::msg::VehicleAttitudeSetpoint
++  # - topic: /fmu/out/battery_status
++  #   type: px4_msgs::msg::BatteryStatus
++  #   rate_limit: 1.
++  # - topic: /fmu/out/collision_constraints
++  #   type: px4_msgs::msg::CollisionConstraints
++  #   rate_limit: 50.
++  # - topic: /fmu/out/estimator_status_flags
++  #   type: px4_msgs::msg::EstimatorStatusFlags
++  #   rate_limit: 5.
++  # - topic: /fmu/out/manual_control_setpoint
++  #   type: px4_msgs::msg::ManualControlSetpoint
++  #   rate_limit: 25.
++  # - topic: /fmu/out/position_setpoint_triplet
++  #   type: px4_msgs::msg::PositionSetpointTriplet
++  #   rate_limit: 5.
++  # - topic: /fmu/out/sensor_combined           # IMU mentah rate tinggi -> RAM besar
++  #   type: px4_msgs::msg::SensorCombined
++  # - topic: /fmu/out/transponder_report
++  #   type: px4_msgs::msg::TransponderReport
++  # - topic: /fmu/out/vehicle_global_position
++  #   type: px4_msgs::msg::VehicleGlobalPosition
++  #   rate_limit: 50.
++  # - topic: /fmu/out/vehicle_gps_position
++  #   type: px4_msgs::msg::SensorGps
++  #   rate_limit: 50.
++  # - topic: /fmu/out/vehicle_odometry          # 100Hz -> RAM besar
++  #   type: px4_msgs::msg::VehicleOdometry
++  #   rate_limit: 100.
++  # - topic: /fmu/out/airspeed_validated
++  #   type: px4_msgs::msg::AirspeedValidated
++  #   rate_limit: 50.
++  # - topic: /fmu/out/vtol_vehicle_status
++  #   type: px4_msgs::msg::VtolVehicleStatus
++  # - topic: /fmu/out/home_position
++  #   type: px4_msgs::msg::HomePosition
++  #   rate_limit: 5.
++  # - topic: /fmu/out/wind
++  #   type: px4_msgs::msg::Wind
++  #   rate_limit: 1.
++  # - topic: /fmu/out/gimbal_device_attitude_status
++  #   type: px4_msgs::msg::GimbalDeviceAttitudeStatus
++  #   rate_limit: 20.
+ 
+-# Create uORB::Publication
+ subscriptions:
+-  - topic: /fmu/in/register_ext_component_request
+-    type: px4_msgs::msg::RegisterExtComponentRequest
+-
+-  - topic: /fmu/in/unregister_ext_component
+-    type: px4_msgs::msg::UnregisterExtComponent
+-
+-  - topic: /fmu/in/config_overrides_request
+-    type: px4_msgs::msg::ConfigOverrides
+-
+-  - topic: /fmu/in/arming_check_reply
+-    type: px4_msgs::msg::ArmingCheckReply
+-
+-  - topic: /fmu/in/message_format_request
+-    type: px4_msgs::msg::MessageFormatRequest
+-
+-  - topic: /fmu/in/mode_completed
+-    type: px4_msgs::msg::ModeCompleted
+-
+-  - topic: /fmu/in/config_control_setpoints
+-    type: px4_msgs::msg::VehicleControlMode
+ 
+-  - topic: /fmu/in/distance_sensor
+-    type: px4_msgs::msg::DistanceSensor
+-
+-  - topic: /fmu/in/manual_control_input
+-    type: px4_msgs::msg::ManualControlSetpoint
+-
+-  - topic: /fmu/in/offboard_control_mode
++  # --- KEEP: inti offboard ---
++  - topic: /fmu/in/offboard_control_mode        # KEEP: heartbeat 50Hz
+     type: px4_msgs::msg::OffboardControlMode
+ 
+-  - topic: /fmu/in/onboard_computer_status
+-    type: px4_msgs::msg::OnboardComputerStatus
+-
+-  - topic: /fmu/in/obstacle_distance
+-    type: px4_msgs::msg::ObstacleDistance
+-
+-  - topic: /fmu/in/sensor_optical_flow
+-    type: px4_msgs::msg::SensorOpticalFlow
+-
+-  - topic: /fmu/in/goto_setpoint
+-    type: px4_msgs::msg::GotoSetpoint
+-
+-  - topic: /fmu/in/telemetry_status
+-    type: px4_msgs::msg::TelemetryStatus
+-
+-  - topic: /fmu/in/trajectory_setpoint
++  - topic: /fmu/in/trajectory_setpoint          # KEEP: setpoint posisi/velocity
+     type: px4_msgs::msg::TrajectorySetpoint
+ 
+-  - topic: /fmu/in/vehicle_attitude_setpoint
+-    type: px4_msgs::msg::VehicleAttitudeSetpoint
+-
+-  - topic: /fmu/in/vehicle_mocap_odometry
+-    type: px4_msgs::msg::VehicleOdometry
+-
+-  - topic: /fmu/in/vehicle_rates_setpoint
+-    type: px4_msgs::msg::VehicleRatesSetpoint
+-
+-  - topic: /fmu/in/vehicle_visual_odometry
+-    type: px4_msgs::msg::VehicleOdometry
+-
+-  - topic: /fmu/in/vehicle_command
+-    type: px4_msgs::msg::VehicleCommand
+-
+-  - topic: /fmu/in/vehicle_command_mode_executor
++  - topic: /fmu/in/vehicle_command              # KEEP: arm/disarm/mode/takeoff
+     type: px4_msgs::msg::VehicleCommand
+ 
+-  - topic: /fmu/in/vehicle_thrust_setpoint
+-    type: px4_msgs::msg::VehicleThrustSetpoint
+-
+-  - topic: /fmu/in/vehicle_torque_setpoint
+-    type: px4_msgs::msg::VehicleTorqueSetpoint
+-
+-  - topic: /fmu/in/actuator_motors
+-    type: px4_msgs::msg::ActuatorMotors
+-
+-  - topic: /fmu/in/actuator_servos
+-    type: px4_msgs::msg::ActuatorServos
+-
+-  - topic: /fmu/in/aux_global_position
+-    type: px4_msgs::msg::VehicleGlobalPosition
+-
+-  - topic: /fmu/in/fixed_wing_longitudinal_setpoint
+-    type: px4_msgs::msg::FixedWingLongitudinalSetpoint
+-
+-  - topic: /fmu/in/fixed_wing_lateral_setpoint
+-    type: px4_msgs::msg::FixedWingLateralSetpoint
+-
+-  - topic: /fmu/in/longitudinal_control_configuration
+-    type: px4_msgs::msg::LongitudinalControlConfiguration
+-
+-  - topic: /fmu/in/lateral_control_configuration
+-    type: px4_msgs::msg::LateralControlConfiguration
+-
+-  - topic: /fmu/in/rover_position_setpoint
+-    type: px4_msgs::msg::RoverPositionSetpoint
+-
+-  - topic: /fmu/in/rover_speed_setpoint
+-    type: px4_msgs::msg::RoverSpeedSetpoint
+-
+-  - topic: /fmu/in/rover_attitude_setpoint
+-    type: px4_msgs::msg::RoverAttitudeSetpoint
+-
+-  - topic: /fmu/in/rover_rate_setpoint
+-    type: px4_msgs::msg::RoverRateSetpoint
+-
+-  - topic: /fmu/in/rover_throttle_setpoint
+-    type: px4_msgs::msg::RoverThrottleSetpoint
+-
+-  - topic: /fmu/in/rover_steering_setpoint
+-    type: px4_msgs::msg::RoverSteeringSetpoint
+-
+-  - topic: /fmu/in/landing_gear
+-    type: px4_msgs::msg::LandingGear
+-
+-# Create uORB::PublicationMulti
+-subscriptions_multi:
++  # === px4_ros2 mode API (TIDAK perlu utk classic offboard) ===
++  # - topic: /fmu/in/register_ext_component_request
++  #   type: px4_msgs::msg::RegisterExtComponentRequest
++  # - topic: /fmu/in/unregister_ext_component
++  #   type: px4_msgs::msg::UnregisterExtComponent
++  # - topic: /fmu/in/config_overrides_request
++  #   type: px4_msgs::msg::ConfigOverrides
++  # - topic: /fmu/in/arming_check_reply
++  #   type: px4_msgs::msg::ArmingCheckReply
++  # - topic: /fmu/in/message_format_request
++  #   type: px4_msgs::msg::MessageFormatRequest
++  # - topic: /fmu/in/mode_completed
++  #   type: px4_msgs::msg::ModeCompleted
++  # - topic: /fmu/in/vehicle_command_mode_executor
++  #   type: px4_msgs::msg::VehicleCommand
++
++  # === Tidak dipakai (hemat RAM) ===
++  # - topic: /fmu/in/config_control_setpoints
++  #   type: px4_msgs::msg::VehicleControlMode
++  # - topic: /fmu/in/distance_sensor
++  #   type: px4_msgs::msg::DistanceSensor
++  # - topic: /fmu/in/manual_control_input
++  #   type: px4_msgs::msg::ManualControlSetpoint
++  # - topic: /fmu/in/onboard_computer_status
++  #   type: px4_msgs::msg::OnboardComputerStatus
++  # - topic: /fmu/in/obstacle_distance
++  #   type: px4_msgs::msg::ObstacleDistance
++  # - topic: /fmu/in/sensor_optical_flow
++  #   type: px4_msgs::msg::SensorOpticalFlow
++  # - topic: /fmu/in/goto_setpoint
++  #   type: px4_msgs::msg::GotoSetpoint
++  # - topic: /fmu/in/telemetry_status
++  #   type: px4_msgs::msg::TelemetryStatus
++  # - topic: /fmu/in/vehicle_attitude_setpoint
++  #   type: px4_msgs::msg::VehicleAttitudeSetpoint
++  # - topic: /fmu/in/vehicle_mocap_odometry
++  #   type: px4_msgs::msg::VehicleOdometry
++  # - topic: /fmu/in/vehicle_rates_setpoint
++  #   type: px4_msgs::msg::VehicleRatesSetpoint
++  # - topic: /fmu/in/vehicle_visual_odometry
++  #   type: px4_msgs::msg::VehicleOdometry
++  # - topic: /fmu/in/vehicle_thrust_setpoint
++  #   type: px4_msgs::msg::VehicleThrustSetpoint
++  # - topic: /fmu/in/vehicle_torque_setpoint
++  #   type: px4_msgs::msg::VehicleTorqueSetpoint
++  # - topic: /fmu/in/actuator_motors
++  #   type: px4_msgs::msg::ActuatorMotors
++  # - topic: /fmu/in/actuator_servos
++  #   type: px4_msgs::msg::ActuatorServos
++  # - topic: /fmu/in/fixed_wing_longitudinal_setpoint
++  #   type: px4_msgs::msg::FixedWingLongitudinalSetpoint
++  # - topic: /fmu/in/fixed_wing_lateral_setpoint
++  #   type: px4_msgs::msg::FixedWingLateralSetpoint
++  # - topic: /fmu/in/longitudinal_control_configuration
++  #   type: px4_msgs::msg::LongitudinalControlConfiguration
++  # - topic: /fmu/in/lateral_control_configuration
++  #   type: px4_msgs::msg::LateralControlConfiguration
++  # - topic: /fmu/in/rover_position_setpoint
++  #   type: px4_msgs::msg::RoverPositionSetpoint
++  # - topic: /fmu/in/rover_speed_setpoint
++  #   type: px4_msgs::msg::RoverSpeedSetpoint
++  # - topic: /fmu/in/rover_attitude_setpoint
++  #   type: px4_msgs::msg::RoverAttitudeSetpoint
++  # - topic: /fmu/in/rover_rate_setpoint
++  #   type: px4_msgs::msg::RoverRateSetpoint
++  # - topic: /fmu/in/rover_throttle_setpoint
++  #   type: px4_msgs::msg::RoverThrottleSetpoint
++  # - topic: /fmu/in/rover_steering_setpoint
++  #   type: px4_msgs::msg::RoverSteeringSetpoint
++  # - topic: /fmu/in/landing_gear
++  #   type: px4_msgs::msg::LandingGear
++
++# subscriptions_multi:
++#   - topic: /fmu/in/aux_global_position
++#     type: px4_msgs::msg::AuxGlobalPosition
++#     route_field: id
++#     max_instances: 4
